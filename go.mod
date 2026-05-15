@@ -1,4 +1,4 @@
-module bitcoin
+module github.com/CrawlerLi/myMiniBitcoin
 
 go 1.25.0
 

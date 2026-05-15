@@ -1,4 +1,4 @@
-package main
+package crypto
 
 import (
 	"crypto/ecdsa"
@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"log"
 
+	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -53,7 +54,19 @@ func GetAddress(pubkey []byte) (address []byte) {
 
 	fullPayload := append(versionPayload, checksum...)
 
-	address = Base58encode(fullPayload)
+	address = utils.Base58encode(fullPayload)
 
 	return address
+}
+
+func HashPubkey(pubkey []byte) []byte {
+	sha256Pubkey := sha256.Sum256(pubkey)
+	ripemd160Hasher := ripemd160.New()
+	_, err := ripemd160Hasher.Write(sha256Pubkey[:])
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return ripemd160Hasher.Sum(nil)
+
 }

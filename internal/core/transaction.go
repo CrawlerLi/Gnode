@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"bytes"
@@ -7,12 +7,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
-	"encoding/hex"
-	"fmt"
-	"log"
-	"math/big"
 
-	"golang.org/x/crypto/ripemd160"
+	"fmt"
+	"math/big"
 )
 
 type TxInput struct {
@@ -71,87 +68,6 @@ func NewCoinBase(pubkeyHash []byte) *Transaction {
 	return tx
 }
 
-func NewTrasaction(wallet *Wallet, to string, amount int, bc *BlockChain) *Transaction {
-	var tx *Transaction
-
-	pubkeyHash := HashPubkey(wallet.Publickey)
-
-	payable, acc := bc.FindSpendableUTXOS(amount, pubkeyHash)
-	if acc < amount {
-		fmt.Println("balance of the address is not enough")
-	}
-
-	var Vin []TxInput
-
-	for txIDHex, idxs := range payable {
-		for _, idx := range idxs {
-			txID, _ := hex.DecodeString(txIDHex)
-			txin := TxInput{
-				Txid:     txID,
-				OutIndex: idx,
-				Pubkey:   wallet.Publickey,
-			}
-			Vin = append(Vin, txin)
-		}
-	}
-
-	TopubkeyHash := Base58decode([]byte(to))
-	TopubkeyHash = TopubkeyHash[1 : len(TopubkeyHash)-4]
-
-	txout := TxOutput{
-		Value:        amount,
-		ScriptPubkey: TopubkeyHash,
-	}
-
-	Vout := []TxOutput{txout}
-
-	if acc > amount {
-		Vout = append(Vout, TxOutput{acc - amount, pubkeyHash})
-	}
-
-	tx = &Transaction{
-		Vin:  Vin,
-		Vout: Vout,
-	}
-
-	tx.ID = tx.Hash()
-
-	prevTxs := make(map[string]Transaction)
-	for _, in := range Vin {
-		prevTx, err := bc.FindTransaction(in.Txid)
-		if err != nil {
-			log.Panic(err)
-		}
-		prevTxs[string(in.Txid)] = prevTx
-	}
-
-	tx.Sign(prevTxs, wallet.PrivateKey)
-
-	return tx
-}
-
-func (tx *Transaction) Sign(prevTXs map[string]Transaction, privateKey *ecdsa.PrivateKey) {
-	if IsCoinBase(tx) {
-		return
-	}
-
-	txCopy := tx.TrimTx()
-
-	for index, input := range txCopy.Vin {
-		txCopy.Vin[index].Pubkey = prevTXs[string(input.Txid)].Vout[input.OutIndex].ScriptPubkey
-		txCopy.ID = txCopy.Hash()
-		sighHash := sha256.Sum256(txCopy.ID)
-
-		r, s, err := ecdsa.Sign(rand.Reader, privateKey, sighHash[:])
-		if err != nil {
-			log.Panic(err)
-		}
-
-		tx.Vin[index].Signature = append(r.Bytes(), s.Bytes()...)
-	}
-
-}
-
 func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
 	if IsCoinBase(tx) {
 		return true
@@ -199,18 +115,6 @@ func (tx *Transaction) TrimTx() (txcopy *Transaction) {
 	}
 
 	return &Transaction{nil, copyVin, copyVout}
-}
-
-func HashPubkey(pubkey []byte) []byte {
-	sha256Pubkey := sha256.Sum256(pubkey)
-	ripemd160Hasher := ripemd160.New()
-	_, err := ripemd160Hasher.Write(sha256Pubkey[:])
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return ripemd160Hasher.Sum(nil)
-
 }
 
 func IsCoinBase(tx *Transaction) bool {
