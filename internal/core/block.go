@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/gob"
 	"time"
 )
 
@@ -22,7 +23,7 @@ func (b *Block) ComputeHash() []byte {
 	data := bytes.Join(
 		[][]byte{
 			b.IntToByte(b.Version),
-			b.PrevHash,
+			b.PrevHash[:],
 			b.IntToByte(b.TimeStamp),
 			b.IntToByte(int64(b.TargetBits)),
 			b.IntToByte(b.Nonce),
@@ -71,4 +72,29 @@ func NewBlock(transcations []*Transaction, prevHash []byte) *Block {
 	nblock.Nonce = nonce
 
 	return nblock
+}
+
+func (b *Block) SerializeBlock() []byte {
+	var buf bytes.Buffer
+
+	encoder := gob.NewEncoder(&buf)
+	err := encoder.Encode(b)
+	if err != nil {
+		panic("failed to serialize block")
+	}
+	return buf.Bytes()
+
+}
+
+func DserializedBlock(key []byte) *Block {
+	var b *Block
+
+	decoder := gob.NewDecoder(bytes.NewReader(key))
+
+	err := decoder.Decode(b)
+	if err != nil {
+		panic("failed to deserialzed key")
+	}
+
+	return b
 }

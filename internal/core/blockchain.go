@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+
+	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
 )
 
 type BlockChain struct {
-	blocks []*Block
+	db database.DB
 }
 
 func (bc *BlockChain) AddBlock(transactions []*Transaction) {
@@ -17,9 +19,14 @@ func (bc *BlockChain) AddBlock(transactions []*Transaction) {
 		}
 	}
 
-	prevHash := bc.blocks[len(bc.blocks)-1].Hash
+	prevHash, err := bc.db.Get("Blocks", []byte("tips"))
+	if err != nil {
+		log.Panic("failed to get previous block hash")
+	}
 	newBlock := NewBlock(transactions, prevHash)
-	bc.blocks = append(bc.blocks, newBlock)
+	bc.db.Put("Blocks", []byte("tips"), newBlock.Hash)
+	bc.db.Put("Blocks", newBlock.ComputeHash(), newBlock.SerializeBlock())
+
 }
 
 func (bc *BlockChain) VerifyTransaction(tx *Transaction) bool {
@@ -31,6 +38,7 @@ func (bc *BlockChain) VerifyTransaction(tx *Transaction) bool {
 	for _, input := range tx.Vin {
 		prevTx, _ := bc.FindTransaction(input.Txid)
 		prevTxs[string(input.Txid)] = prevTx
+
 	}
 	return tx.Verify(prevTxs)
 }
@@ -51,11 +59,22 @@ func NewGenesisBlock(coinbase *Transaction) *Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
-func NewBlockChain(pubkeyHash []byte) (bs *BlockChain) {
+func NewBlockChain(pubkeyHash []byte, path string) (bs *BlockChain) {
+	db, err := database.NewDB(path)
+	if err != nil {
+		panic("failed to initialize database")
+	}
+
+	db.CreateBucket("blocks")
+	db.CreateBucket("UTXO")
 	coinbase := NewCoinBase(pubkeyHash)
 	Genesisblock := NewGenesisBlock(coinbase)
-	return &BlockChain{[]*Block{Genesisblock}}
+	err = db.Put("blocks", Genesisblock.ComputeHash(), Genesisblock.SerializeBlock())
+	if err != nil {
+		panic("failed to add genesis block")
+	}
 
+	return &BlockChain{db: db}
 }
 
 func (bc *BlockChain) Print() {

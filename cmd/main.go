@@ -34,7 +34,7 @@ func main() {
 	fmt.Println("The banlance of Bob is ", banlanceB)
 	fmt.Println()
 
-	// 打包一笔交易（这里先用 coinbase 模拟）
+	// 打包一笔交易
 	bc.AddBlock([]*core.Transaction{wallet.NewTrasaction(Alice, string(Bob.Address), 30, bc),
 		core.NewCoinBase(crypto.HashPubkey(Alice.Publickey)),
 	})
