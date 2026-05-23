@@ -8,6 +8,10 @@ type boltDB struct {
 	client *bolt.DB
 }
 
+type Tx struct {
+	bolt.Tx
+}
+
 func NewDB(path string) (DB, error) {
 	client, err := bolt.Open(path, 0600, nil)
 	if err != nil {
@@ -54,6 +58,14 @@ func (db *boltDB) Delete(bucketName string, key []byte) error {
 		err := b.Delete(key)
 		return err
 	})
+}
+
+func (db *boltDB) Update(fn func(tx *Tx) error) error {
+	return db.client.Update(fn)
+}
+
+func (db *boltDB) View(fn func(tx *Tx) error) error {
+	return db.client.View(fn)
 }
 
 func (db *boltDB) Close() error {
