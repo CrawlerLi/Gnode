@@ -13,12 +13,12 @@ import (
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
 )
 
-func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockChain) *core.Transaction {
+func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet) *core.Transaction {
 	var tx *core.Transaction
 
 	pubkeyHash := crypto.HashPubkey(wallet.Publickey)
 
-	payable, acc := core.FindSpendableUTXOS(amount, pubkeyHash, bc)
+	payable, acc := u.FindSpendableUTXOS(amount, pubkeyHash)
 	if acc < amount {
 		fmt.Println("balance of the address is not enough")
 	}

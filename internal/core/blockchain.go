@@ -19,13 +19,10 @@ func (bc *BlockChain) AddBlock(transactions []*Transaction) {
 		}
 	}
 
-	prevHash, err := bc.db.Get("Blocks", []byte("tips"))
-	if err != nil {
-		log.Panic("failed to get previous block hash")
+	bc.db.Update(func(tx database.Transaction) error {
+
 	}
-	newBlock := NewBlock(transactions, prevHash)
-	bc.db.Put("Blocks", []byte("tips"), newBlock.Hash)
-	bc.db.Put("Blocks", newBlock.ComputeHash(), newBlock.SerializeBlock())
+	)
 
 }
 
@@ -43,17 +40,6 @@ func (bc *BlockChain) VerifyTransaction(tx *Transaction) bool {
 	return tx.Verify(prevTxs)
 }
 
-func (bc *BlockChain) FindTransaction(txID []byte) (Transaction, error) {
-	for _, b := range bc.blocks {
-		for _, tx := range b.Transactions {
-			if bytes.Equal(tx.ID, txID) {
-				return *tx, nil
-			}
-
-		}
-	}
-	return Transaction{}, fmt.Errorf("Transaction does not exist")
-}
 
 func NewGenesisBlock(coinbase *Transaction) *Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{})

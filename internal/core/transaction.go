@@ -42,6 +42,28 @@ func (tx *Transaction) Hash() []byte {
 	return hash[:]
 }
 
+func (tx *Transaction) SerializeTxOutput() []byte {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(tx)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	return buf.Bytes()
+}
+
+func DeserializeTxOutput(bytesOutput []byte) *TxOutput {
+	var txo TxOutput
+	dec := gob.NewDecoder(bytes.NewReader(bytesOutput))
+	err := dec.Decode(&txo)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	return &txo
+}
+
 func NewCoinBase(pubkeyHash []byte) *Transaction {
 	nonce := make([]byte, 8)
 	rand.Read(nonce)

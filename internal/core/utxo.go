@@ -5,63 +5,96 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
 )
 
-func FindAllUTXO(bc *BlockChain) map[string]TxOutput {
-	utxo := make(map[string]TxOutput)
+type UTXOSet struct {
+	db database.DB
+}
+
+func (u *UTXOSet) UpdateUTXO(b *Block, dbTx database.Tx) error {
+	bucket := dbTx.Bucket("UTXOSet")
+
 	spentTxos := make(map[string]bool)
 
-	for _, block := range bc.blocks {
-		for _, tx := range block.Transactions {
-			txid := tx.ID
-			txidHex := fmt.Sprintf("%x", txid)
-			for i, txo := range tx.Vout {
-				key := fmt.Sprintf("%s:%d", txidHex, i)
-				if !spentTxos[key] {
-					utxo[key] = txo
+	for _, tx := range b.Transactions {
+		txid := tx.ID
+		txidHex := fmt.Sprintf("%x", txid)
+		for i, _ := range tx.Vout {
+			key := fmt.Sprintf("%s:%d", txidHex, i)
+			if !spentTxos[key] {
+				err := bucket.Put([]byte(key), tx.SerializeTxOutput())
+				if err != nil {
+					return err
 				}
 			}
+		}
 
-			if !IsCoinBase(tx) {
-				for _, txi := range tx.Vin {
-					txidHex := fmt.Sprintf("%x", txi.Txid)
-					key := fmt.Sprintf("%s:%d", txidHex, txi.OutIndex)
-					spentTxos[key] = true
-					delete(utxo, key)
+		if !IsCoinBase(tx) {
+			for _, txi := range tx.Vin {
+				txidHex := fmt.Sprintf("%x", txi.Txid)
+				key := fmt.Sprintf("%s:%d", txidHex, txi.OutIndex)
+				spentTxos[key] = true
+				err := bucket.Delete([]byte(key))
+				if err != nil {
+					return err
 				}
-
 			}
 
 		}
+
 	}
 
-	return utxo
+	return nil
 }
 
-func FindSpendableUTXOS(amount int, pubkeyHash []byte, bc *BlockChain) (map[string][]int, int) {
+func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) (map[string][]int, int) {
 
 	payable := make(map[string][]int)
 	acc := 0
 
-	utxos := FindAllUTXO(bc)
-	for key, output := range utxos {
-		if bytes.Equal(pubkeyHash, output.ScriptPubkey) {
+	u.db.View(func(dbTx database.Tx) error {
+		bucket := dbTx.Bucket("UTXOSet")
+		cursor := bucket.Cursor()
 
-			parts := strings.Split(key, ":")
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			var output TxOutput
+			output = *DeserializeTxOutput(v)
 
-			txid := parts[0]
-			outidx := parts[1]
+			if bytes.Equal(pubkeyHash, output.ScriptPubkey) {
 
-			acc += output.Value
-			outidxInt, _ := strconv.Atoi(outidx)
-			payable[txid] = append(payable[txid], outidxInt)
+				parts := strings.Split(string(k), ":")
 
-			if acc >= amount {
-				break
+				txid := parts[0]
+				outidx := parts[1]
+
+				acc += output.Value
+				outidxInt, _ := strconv.Atoi(outidx)
+				payable[txid] = append(payable[txid], outidxInt)
+
+				if acc >= amount {
+					break
+				}
 			}
 		}
-	}
+
+		return nil
+	})
 
 	return payable, acc
 
+}
+
+
+func (u *UTXOSet) FindTransaction(txID []byte, outindex int) (Transaction, error) {
+	for _, b := range bc.blocks {
+		for _, tx := range b.Transactions {
+			if bytes.Equal(tx.ID, txID) {
+				return *tx, nil
+			}
+
+		}
+	}
+	return Transaction{}, fmt.Errorf("Transaction does not exist")
 }
