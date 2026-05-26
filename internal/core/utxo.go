@@ -44,6 +44,38 @@ func (u *UTXOSet) UpdateUTXO(b *Block, dbTx database.Tx) error {
 	return nil
 }
 
+func (u *UTXOSet) Snapshot() (utxoSnapshot map[*OutPoint]TxOutput, e error) {
+	err := u.db.View(func(dbTx database.Tx) error {
+		bucket := dbTx.Bucket("UTXOSet")
+		if bucket == nil {
+			return fmt.Errorf("failed to find UTXOSet bucket")
+		}
+		cursor := bucket.Cursor()
+
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			output, err := DeserializeTxOutput(v)
+			if err != nil {
+				return err
+			}
+
+			op, err := DecodeUTXOKey(k)
+			if err != nil {
+				return err
+			}
+
+			utxoSnapshot[&op] = output
+
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return utxoSnapshot, nil
+}
+
 func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) (map[string][]int, int, error) {
 
 	payable := make(map[string][]int)

@@ -68,47 +68,55 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet
 		if err != nil {
 			log.Panic(err)
 		}
-		prevTxs[string(in.Txid)] = prevOutput
+		prevOutputs[core.OutPoint{in.Txid, in.OutIndex}.String()] = prevOutput
 	}
 
-	Sign(tx, prevTxs, wallet.PrivateKey)
+	err = Sign(tx, prevOutputs, wallet.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
 
 	return tx, nil
 }
 
-func Sign(tx *core.Transaction, prevTXs map[string]core.Transaction, privateKey *ecdsa.PrivateKey) {
+func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey *ecdsa.PrivateKey) error {
 	if core.IsCoinBase(tx) {
-		return
+		return nil
 	}
 
 	txCopy := tx.TrimTx()
 
 	for index, input := range txCopy.Vin {
-		txCopy.Vin[index].Pubkey = prevTXs[string(input.Txid)].Vout[input.OutIndex].ScriptPubkey
+		txCopy.Vin[index].Pubkey = prevOutputs[core.OutPoint{input.Txid, input.OutIndex}.String()].ScriptPubkey
 		txCopy.ID = txCopy.Hash()
 		sighHash := sha256.Sum256(txCopy.ID)
 
 		r, s, err := ecdsa.Sign(rand.Reader, privateKey, sighHash[:])
 		if err != nil {
-			log.Panic(err)
+			return fmt.Errorf("failed to sign tx")
 		}
 
 		tx.Vin[index].Signature = append(r.Bytes(), s.Bytes()...)
 	}
 
+	return nil
+
 }
 
-func GetBalance(bc *core.BlockChain, address string) int {
+func GetBalance(u *core.UTXOSet, address string) (int, error) {
 	var balance int
 	pubkeyHash := utils.Base58decode([]byte(address))
 	pubkeyHash = pubkeyHash[1 : len(pubkeyHash)-4]
 
-	utxos := core.FindAllUTXO(bc)
+	utxos, err := u.Snapshot()
+	if err != nil {
+		return 0, fmt.Errorf("fail to snapshot UTXO: %s", err)
+	}
 	for _, utxo := range utxos {
 		if string(utxo.ScriptPubkey) == string(pubkeyHash) {
 			balance += utxo.Value
 		}
 	}
 
-	return balance
+	return balance, nil
 }
