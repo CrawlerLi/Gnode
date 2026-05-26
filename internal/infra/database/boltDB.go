@@ -12,12 +12,12 @@ type Transaction struct {
 	rawTx *bolt.Tx
 }
 
-type blotBucket struct {
-	rawBucket bolt.Bucket
+type boltBucket struct {
+	rawBucket *bolt.Bucket
 }
 
 type boltCursor struct {
-	rawCurosr bolt.Cursor
+	rawCursor *bolt.Cursor
 }
 
 func NewDB(path string) (DB, error) {
@@ -38,6 +38,9 @@ func (db *boltDB) CreateBucket(name string) error {
 func (db *boltDB) Put(bucketName string, key, value []byte) error {
 	return db.client.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucketName))
+		if b == nil {
+			return ErrBucketNotFound
+		}
 		err := b.Put(key, value)
 		return err
 	})
@@ -47,6 +50,9 @@ func (db *boltDB) Get(bucketName string, key []byte) ([]byte, error) {
 	var result []byte
 	err := db.client.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucketName))
+		if b == nil {
+			return ErrBucketNotFound
+		}
 		data := b.Get(key)
 
 		//for avoiding
@@ -63,6 +69,9 @@ func (db *boltDB) Get(bucketName string, key []byte) ([]byte, error) {
 func (db *boltDB) Delete(bucketName string, key []byte) error {
 	return db.client.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucketName))
+		if b == nil {
+			return ErrBucketNotFound
+		}
 		err := b.Delete(key)
 		return err
 	})
@@ -88,21 +97,28 @@ func (db *boltDB) Close() error {
 
 func (tx *Transaction) CreateBucket(name string) (Bucket, error) {
 	b, err := tx.rawTx.CreateBucketIfNotExists([]byte(name))
-	bucket := &blotBucket{rawBucket: *b}
-	return bucket, err
+	if err != nil {
+		return nil, err
+	}
+	return &boltBucket{rawBucket: b}, nil
 }
 
 func (tx *Transaction) Bucket(name string) Bucket {
 	b := tx.rawTx.Bucket([]byte(name))
-	bucket := &blotBucket{rawBucket: *b}
-	return bucket
+	return &boltBucket{rawBucket: b}
 }
 
-func (b *blotBucket) Put(key []byte, value []byte) error {
+func (b *boltBucket) Put(key []byte, value []byte) error {
+	if b == nil || b.rawBucket == nil {
+		return ErrBucketNotFound
+	}
 	return b.rawBucket.Put(key, value)
 }
 
-func (b *blotBucket) Get(key []byte) []byte {
+func (b *boltBucket) Get(key []byte) []byte {
+	if b == nil || b.rawBucket == nil {
+		return nil
+	}
 	var result []byte
 	value := b.rawBucket.Get(key)
 	if value != nil {
@@ -113,30 +129,51 @@ func (b *blotBucket) Get(key []byte) []byte {
 	return nil
 }
 
-func (b *blotBucket) Delete(key []byte) error {
+func (b *boltBucket) Delete(key []byte) error {
+	if b == nil || b.rawBucket == nil {
+		return ErrBucketNotFound
+	}
 	return b.rawBucket.Delete(key)
 }
 
-func (b blotBucket) Cursor() Cursor {
-	return b.rawBucket.Cursor()
+func (b *boltBucket) Cursor() Cursor {
+	if b == nil || b.rawBucket == nil {
+		return &boltCursor{}
+	}
+	return &boltCursor{rawCursor: b.rawBucket.Cursor()}
 }
 
 func (c *boltCursor) First() (key []byte, value []byte) {
-	return c.rawCurosr.First()
+	if c == nil || c.rawCursor == nil {
+		return nil, nil
+	}
+	return c.rawCursor.First()
 }
 
 func (c *boltCursor) Last() (key []byte, value []byte) {
-	return c.rawCurosr.Last()
+	if c == nil || c.rawCursor == nil {
+		return nil, nil
+	}
+	return c.rawCursor.Last()
 }
 
 func (c *boltCursor) Prev() (key []byte, value []byte) {
-	return c.rawCurosr.Prev()
+	if c == nil || c.rawCursor == nil {
+		return nil, nil
+	}
+	return c.rawCursor.Prev()
 }
 
 func (c *boltCursor) Next() (key []byte, value []byte) {
-	return c.rawCurosr.Next()
+	if c == nil || c.rawCursor == nil {
+		return nil, nil
+	}
+	return c.rawCursor.Next()
 }
 
 func (c *boltCursor) Seek(key []byte) (k []byte, value []byte) {
-	return c.rawCurosr.Seek(key)
+	if c == nil || c.rawCursor == nil {
+		return nil, nil
+	}
+	return c.rawCursor.Seek(key)
 }

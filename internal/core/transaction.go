@@ -53,15 +53,15 @@ func (tx *Transaction) SerializeTxOutput() []byte {
 	return buf.Bytes()
 }
 
-func DeserializeTxOutput(bytesOutput []byte) *TxOutput {
+func DeserializeTxOutput(bytesOutput []byte) (TxOutput, error) {
 	var txo TxOutput
 	dec := gob.NewDecoder(bytes.NewReader(bytesOutput))
 	err := dec.Decode(&txo)
 	if err != nil {
-		fmt.Println(err)
+		return TxOutput{}, err
 	}
 
-	return &txo
+	return txo, nil
 }
 
 func NewCoinBase(pubkeyHash []byte) *Transaction {

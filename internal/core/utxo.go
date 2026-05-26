@@ -3,8 +3,6 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
 )
@@ -19,10 +17,8 @@ func (u *UTXOSet) UpdateUTXO(b *Block, dbTx database.Tx) error {
 	spentTxos := make(map[string]bool)
 
 	for _, tx := range b.Transactions {
-		txid := tx.ID
-		txidHex := fmt.Sprintf("%x", txid)
 		for i, _ := range tx.Vout {
-			key := fmt.Sprintf("%s:%d", txidHex, i)
+			key := string(EncodeUTXOKey(tx.ID, i))
 			if !spentTxos[key] {
 				err := bucket.Put([]byte(key), tx.SerializeTxOutput())
 				if err != nil {
@@ -33,8 +29,7 @@ func (u *UTXOSet) UpdateUTXO(b *Block, dbTx database.Tx) error {
 
 		if !IsCoinBase(tx) {
 			for _, txi := range tx.Vin {
-				txidHex := fmt.Sprintf("%x", txi.Txid)
-				key := fmt.Sprintf("%s:%d", txidHex, txi.OutIndex)
+				key := string(EncodeUTXOKey(txi.Txid, txi.OutIndex))
 				spentTxos[key] = true
 				err := bucket.Delete([]byte(key))
 				if err != nil {
@@ -49,29 +44,34 @@ func (u *UTXOSet) UpdateUTXO(b *Block, dbTx database.Tx) error {
 	return nil
 }
 
-func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) (map[string][]int, int) {
+func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) (map[string][]int, int, error) {
 
 	payable := make(map[string][]int)
 	acc := 0
 
-	u.db.View(func(dbTx database.Tx) error {
+	err := u.db.View(func(dbTx database.Tx) error {
 		bucket := dbTx.Bucket("UTXOSet")
+		if bucket == nil {
+			return fmt.Errorf("failed to find UTXOSet bucket")
+		}
 		cursor := bucket.Cursor()
 
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
 			var output TxOutput
-			output = *DeserializeTxOutput(v)
+			output, err := DeserializeTxOutput(v)
+			if err != nil {
+				return err
+			}
 
 			if bytes.Equal(pubkeyHash, output.ScriptPubkey) {
 
-				parts := strings.Split(string(k), ":")
-
-				txid := parts[0]
-				outidx := parts[1]
+				outPoint, err := DecodeUTXOKey(k)
+				if err != nil {
+					return err
+				}
 
 				acc += output.Value
-				outidxInt, _ := strconv.Atoi(outidx)
-				payable[txid] = append(payable[txid], outidxInt)
+				payable[fmt.Sprintf("%x", outPoint.TxID)] = append(payable[fmt.Sprintf("%x", outPoint.TxID)], outPoint.OutIndex)
 
 				if acc >= amount {
 					break
@@ -82,19 +82,37 @@ func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) (map[string]
 		return nil
 	})
 
-	return payable, acc
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return payable, acc, nil
 
 }
 
+func (u *UTXOSet) FindTransaction(txID []byte, outindex int) (TxOutput, error) {
+	key := EncodeUTXOKey(txID, outindex)
 
-func (u *UTXOSet) FindTransaction(txID []byte, outindex int) (Transaction, error) {
-	for _, b := range bc.blocks {
-		for _, tx := range b.Transactions {
-			if bytes.Equal(tx.ID, txID) {
-				return *tx, nil
-			}
-
+	var value []byte
+	err := u.db.View(func(dbTx database.Tx) error {
+		bucket := dbTx.Bucket("UTXOSet")
+		if bucket == nil {
+			return fmt.Errorf("failed to find UTXOSet bucket")
 		}
+		value = bucket.Get(key)
+		return nil
+	})
+	if err != nil {
+		return TxOutput{}, err
 	}
-	return Transaction{}, fmt.Errorf("Transaction does not exist")
+
+	if value == nil {
+		return TxOutput{}, fmt.Errorf("tx output does not exist")
+	}
+
+	txo, err := DeserializeTxOutput(value)
+	if err != nil {
+		return TxOutput{}, fmt.Errorf("failed to deserialize tx output")
+	}
+	return txo, nil
 }

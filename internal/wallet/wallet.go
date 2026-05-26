@@ -13,14 +13,18 @@ import (
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
 )
 
-func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet) *core.Transaction {
+func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet) (*core.Transaction, error) {
 	var tx *core.Transaction
 
 	pubkeyHash := crypto.HashPubkey(wallet.Publickey)
 
-	payable, acc := u.FindSpendableUTXOS(amount, pubkeyHash)
+	payable, acc, err := u.FindSpendableUTXOS(amount, pubkeyHash)
+	if err != nil {
+		return nil, err
+	}
+
 	if acc < amount {
-		fmt.Println("balance of the address is not enough")
+		return nil, fmt.Errorf("banlance do not enough")
 	}
 
 	var Vin []core.TxInput
@@ -58,18 +62,18 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet
 
 	tx.ID = tx.Hash()
 
-	prevTxs := make(map[string]core.Transaction)
+	prevOutputs := make(map[string]core.TxOutput)
 	for _, in := range Vin {
-		prevTx, err := bc.FindTransaction(in.Txid)
+		prevOutput, err := u.FindTransaction(in.Txid, in.OutIndex)
 		if err != nil {
 			log.Panic(err)
 		}
-		prevTxs[string(in.Txid)] = prevTx
+		prevTxs[string(in.Txid)] = prevOutput
 	}
 
 	Sign(tx, prevTxs, wallet.PrivateKey)
 
-	return tx
+	return tx, nil
 }
 
 func Sign(tx *core.Transaction, prevTXs map[string]core.Transaction, privateKey *ecdsa.PrivateKey) {
