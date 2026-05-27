@@ -62,9 +62,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to create transaction: %s", err))
 	}
-	bc.AddBlock([]*core.Transaction{NewTx,
-		core.NewCoinBase(crypto.HashPubkey(Alice.Publickey)),
-	})
+	bc.AddBlock([]*core.Transaction{NewTx, core.NewCoinBase(crypto.HashPubkey(Alice.Publickey))})
 	fmt.Println("The third block has been created, all transactions have benn verified!")
 	bc.Print()
 

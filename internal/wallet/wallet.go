@@ -11,12 +11,12 @@ import (
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
 )
 
-func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet) (*core.Transaction, error) {
+func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockChain) (*core.Transaction, error) {
 	var tx *core.Transaction
 
 	pubkeyHash := crypto.HashPubkey(wallet.Publickey)
 
-	payable, acc, err := u.FindSpendableUTXOS(amount, pubkeyHash)
+	payable, acc, err := bc.UTXO.FindSpendableUTXOS(amount, pubkeyHash)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to find payable UTXO: %s", err)
 	}
@@ -95,12 +95,12 @@ func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey
 
 }
 
-func GetBalance(u *core.UTXOSet, address string) (int, error) {
+func GetBalance(bc *core.BlockChain, address string) (int, error) {
 	var balance int
 	pubkeyHash := utils.Base58decode([]byte(address))
 	pubkeyHash = pubkeyHash[1 : len(pubkeyHash)-4]
 
-	utxos, err := u.Snapshot()
+	utxos, err := bc.UTXO.Snapshot()
 	if err != nil {
 		return 0, fmt.Errorf("fail to snapshot UTXO: %s", err)
 	}

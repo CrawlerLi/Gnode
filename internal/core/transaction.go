@@ -90,14 +90,14 @@ func NewCoinBase(pubkeyHash []byte) *Transaction {
 	return tx
 }
 
-func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
+func (tx *Transaction) Verify(prevOutputs map[string]TxOutput) bool {
 	if IsCoinBase(tx) {
 		return true
 	}
 
 	txCopy := tx.TrimTx()
 	for idx, input := range tx.Vin {
-		txCopy.Vin[idx].Pubkey = prevTxs[string(input.Txid)].Vout[input.OutIndex].ScriptPubkey
+		txCopy.Vin[idx].Pubkey = prevOutputs[OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()].ScriptPubkey
 		txCopy.ID = txCopy.Hash()
 		verifyHash := sha256.Sum256(txCopy.ID)
 
