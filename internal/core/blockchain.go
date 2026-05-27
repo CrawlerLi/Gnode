@@ -40,7 +40,7 @@ func (bc *BlockChain) AddBlock(transactions []*Transaction) error {
 		if blockBucket == nil {
 			return fmt.Errorf("failed to find blocks bucket")
 		}
-		err = blockBucket.Put(NewBlock.ComputeHash(), NewBlock.SerializeBlock())
+		err = blockBucket.Put(NewBlock.Hash, NewBlock.SerializeBlock())
 		if err != nil {
 			return fmt.Errorf("failed to update new block: %s", err)
 		}
@@ -102,7 +102,7 @@ func NewBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) {
 		if blockBucket == nil {
 			return fmt.Errorf("failed to find blocks bucket")
 		}
-		err := blockBucket.Put(Genesisblock.ComputeHash(), Genesisblock.SerializeBlock())
+		err := blockBucket.Put(Genesisblock.Hash, Genesisblock.SerializeBlock())
 		if err != nil {
 			return fmt.Errorf("failed to add genesis block: %s", err)
 		}
@@ -135,17 +135,30 @@ func (bc *BlockChain) Print() {
 		if blockBucket == nil {
 			return fmt.Errorf("failed to find blocks bucket")
 		}
-		cursor := blockBucket.Cursor()
 
-		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-			if string(k) == "tip" {
-				continue
+		LastBlockHash := blockBucket.Get([]byte("tip"))
+		if LastBlockHash == nil {
+			return fmt.Errorf("failed to check LastBlockHash")
+		}
+
+		hashPointer := LastBlockHash
+		for {
+			blockBytes := blockBucket.Get(hashPointer)
+			if blockBytes == nil {
+				return fmt.Errorf("failed to get block by hash: %x", hashPointer)
 			}
-			block, err := DeserializedBlock(v)
+			block, err := DeserializedBlock(blockBytes)
 			if err != nil {
 				return fmt.Errorf("failed to deserialize block: %s", err)
 			}
+
 			blocks = append(blocks, block)
+			if len(block.PrevHash) == 0 {
+				break
+			}
+
+			hashPointer = block.PrevHash
+
 		}
 		return nil
 	})
@@ -156,7 +169,7 @@ func (bc *BlockChain) Print() {
 	}
 
 	for i, block := range blocks {
-		fmt.Printf("========= 区块 %d =========\n", i)
+		fmt.Printf("========= 区块 %d =========\n", len(blocks)-i-1)
 		fmt.Printf("上一个区块哈希: %x\n", block.PrevHash)
 		fmt.Printf("当前区块哈希: %x\n", block.Hash)
 		fmt.Println()
