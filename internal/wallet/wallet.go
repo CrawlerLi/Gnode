@@ -4,9 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"log"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
@@ -20,7 +18,7 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet
 
 	payable, acc, err := u.FindSpendableUTXOS(amount, pubkeyHash)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to find payable UTXO: %s", err)
 	}
 
 	if acc < amount {
@@ -28,17 +26,20 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet
 	}
 
 	var Vin []core.TxInput
+	prevOutputs := make(map[string]core.TxOutput)
 
-	for txIDHex, idxs := range payable {
-		for _, idx := range idxs {
-			txID, _ := hex.DecodeString(txIDHex)
-			txin := core.TxInput{
-				Txid:     txID,
-				OutIndex: idx,
-				Pubkey:   wallet.Publickey,
-			}
-			Vin = append(Vin, txin)
+	for _, spendableUTXO := range payable {
+
+		txID, idx := spendableUTXO.OutPoint.TxID, spendableUTXO.OutPoint.OutIndex
+		txin := core.TxInput{
+			Txid:     txID,
+			OutIndex: idx,
+			Pubkey:   wallet.Publickey,
 		}
+
+		Vin = append(Vin, txin)
+		prevOutputs[spendableUTXO.OutPoint.String()] = spendableUTXO.Output
+
 	}
 
 	TopubkeyHash := utils.Base58decode([]byte(to))
@@ -52,7 +53,7 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet
 	Vout := []core.TxOutput{txout}
 
 	if acc > amount {
-		Vout = append(Vout, core.TxOutput{acc - amount, pubkeyHash})
+		Vout = append(Vout, core.TxOutput{Value: acc - amount, ScriptPubkey: pubkeyHash})
 	}
 
 	tx = &core.Transaction{
@@ -61,15 +62,6 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, u *core.UTXOSet
 	}
 
 	tx.ID = tx.Hash()
-
-	prevOutputs := make(map[string]core.TxOutput)
-	for _, in := range Vin {
-		prevOutput, err := u.FindTransaction(in.Txid, in.OutIndex)
-		if err != nil {
-			log.Panic(err)
-		}
-		prevOutputs[core.OutPoint{in.Txid, in.OutIndex}.String()] = prevOutput
-	}
 
 	err = Sign(tx, prevOutputs, wallet.PrivateKey)
 	if err != nil {
@@ -87,7 +79,7 @@ func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey
 	txCopy := tx.TrimTx()
 
 	for index, input := range txCopy.Vin {
-		txCopy.Vin[index].Pubkey = prevOutputs[core.OutPoint{input.Txid, input.OutIndex}.String()].ScriptPubkey
+		txCopy.Vin[index].Pubkey = prevOutputs[core.OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()].ScriptPubkey
 		txCopy.ID = txCopy.Hash()
 		sighHash := sha256.Sum256(txCopy.ID)
 

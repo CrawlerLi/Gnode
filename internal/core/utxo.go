@@ -11,6 +11,11 @@ type UTXOSet struct {
 	db database.DB
 }
 
+type SpenabeleUTXO struct {
+	OutPoint OutPoint
+	Output   TxOutput
+}
+
 func (u *UTXOSet) UpdateUTXO(b *Block, dbTx database.Tx) error {
 	bucket := dbTx.Bucket("UTXOSet")
 
@@ -20,7 +25,7 @@ func (u *UTXOSet) UpdateUTXO(b *Block, dbTx database.Tx) error {
 		for i, _ := range tx.Vout {
 			key := string(EncodeUTXOKey(tx.ID, i))
 			if !spentTxos[key] {
-				err := bucket.Put([]byte(key), tx.SerializeTxOutput())
+				err := bucket.Put([]byte(key), tx.SerializeTxOutput(i))
 				if err != nil {
 					return err
 				}
@@ -76,9 +81,9 @@ func (u *UTXOSet) Snapshot() (utxoSnapshot map[*OutPoint]TxOutput, e error) {
 	return utxoSnapshot, nil
 }
 
-func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) (map[string][]int, int, error) {
+func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) ([]SpenabeleUTXO, int, error) {
 
-	payable := make(map[string][]int)
+	payable := []SpenabeleUTXO{}
 	acc := 0
 
 	err := u.db.View(func(dbTx database.Tx) error {
@@ -103,7 +108,7 @@ func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) (map[string]
 				}
 
 				acc += output.Value
-				payable[fmt.Sprintf("%x", outPoint.TxID)] = append(payable[fmt.Sprintf("%x", outPoint.TxID)], outPoint.OutIndex)
+				payable = append(payable, SpenabeleUTXO{OutPoint: outPoint, Output: output})
 
 				if acc >= amount {
 					break

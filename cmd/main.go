@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/wallet"
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
 )
+
+const testDBFile = "test_temp.db"
 
 func main() {
 
@@ -18,7 +21,20 @@ func main() {
 	fmt.Println("The address of Bob is ", string(Bob.Address))
 	fmt.Println()
 
-	bc := core.NewBlockChain(crypto.HashPubkey(Alice.Publickey))
+	bc, err := core.NewBlockChain(crypto.HashPubkey(Alice.Publickey), testDBFile)
+
+	defer func() {
+		if err := bc.DB.Close(); err != nil {
+			fmt.Printf("failed to close database: %s", err)
+		}
+		if err := os.Remove(testDBFile); err != nil {
+			fmt.Printf("failed to remove database file: %s", err)
+		}
+	}()
+
+	if err != nil {
+		panic(fmt.Sprintf("failed to create block chain: %s", err))
+	}
 	fmt.Println("The gensis block has been created!")
 	bc.Print()
 
@@ -27,25 +43,42 @@ func main() {
 	bc.Print()
 
 	fmt.Println("======初始余额======")
-	banlanceA := wallet.GetBalance(bc, string(Alice.Address))
+	banlanceA, err := wallet.GetBalance(bc, string(Alice.Address))
+	if err != nil {
+		panic(fmt.Sprintf("failed to get Alice's balance: %s", err))
+	}
 	fmt.Println("The banlance of Alice is ", banlanceA)
 
-	banlanceB := wallet.GetBalance(bc, string(Bob.Address))
+	banlanceB, err := wallet.GetBalance(bc, string(Bob.Address))
+	if err != nil {
+		panic(fmt.Sprintf("failed to get Bob's balance: %s", err))
+	}
 	fmt.Println("The banlance of Bob is ", banlanceB)
 	fmt.Println()
 
-	// 打包一笔交易
-	bc.AddBlock([]*core.Transaction{wallet.NewTrasaction(Alice, string(Bob.Address), 30, bc),
+	//打包一笔交易
+
+	NewTx, err := wallet.NewTrasaction(Alice, string(Bob.Address), 30, bc)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create transaction: %s", err))
+	}
+	bc.AddBlock([]*core.Transaction{NewTx,
 		core.NewCoinBase(crypto.HashPubkey(Alice.Publickey)),
 	})
 	fmt.Println("The third block has been created, all transactions have benn verified!")
 	bc.Print()
 
 	fmt.Println("======最终余额======")
-	banlanceA = wallet.GetBalance(bc, string(Alice.Address))
+	banlanceA, err = wallet.GetBalance(bc, string(Alice.Address))
+	if err != nil {
+		panic(fmt.Sprintf("failed to get Alice's balance: %s", err))
+	}
 	fmt.Println("The banlance of Alice is ", banlanceA)
 
-	banlanceB = wallet.GetBalance(bc, string(Bob.Address))
+	banlanceB, err = wallet.GetBalance(bc, string(Bob.Address))
+	if err != nil {
+		panic(fmt.Sprintf("failed to get Bob's balance: %s", err))
+	}
 	fmt.Println("The banlance of Bob is ", banlanceB)
 	fmt.Println()
 

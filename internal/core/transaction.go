@@ -42,10 +42,10 @@ func (tx *Transaction) Hash() []byte {
 	return hash[:]
 }
 
-func (tx *Transaction) SerializeTxOutput() []byte {
+func (tx *Transaction) SerializeTxOutput(outindex int) []byte {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(tx)
+	err := enc.Encode(tx.Vout[outindex])
 	if err != nil {
 		fmt.Println(err)
 	}
