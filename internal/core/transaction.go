@@ -30,27 +30,35 @@ type Transaction struct {
 	Vout []TxOutput
 }
 
-func (tx *Transaction) Hash() []byte {
+const (
+	coinbaseNonceSize = 8
+	coinbaseOutIndex  = -1
+	coinbaseReward    = 50
+	pubKeyCoordLen    = 32
+	pubKeyLen         = pubKeyCoordLen * 2
+)
+
+func (tx *Transaction) Hash() ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(tx)
 	if err != nil {
-		fmt.Println(err)
+		return nil, fmt.Errorf("encode transaction: %w", err)
 	}
 
 	hash := sha256.Sum256(buf.Bytes())
-	return hash[:]
+	return hash[:], nil
 }
 
-func (tx *Transaction) SerializeTxOutput(outindex int) []byte {
+func (tx *Transaction) SerializeTxOutput(outindex int) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(tx.Vout[outindex])
 	if err != nil {
-		fmt.Println(err)
+		return nil, fmt.Errorf("failed to encode transaction output: %w", err)
 	}
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
 func DeserializeTxOutput(bytesOutput []byte) (TxOutput, error) {
@@ -64,19 +72,22 @@ func DeserializeTxOutput(bytesOutput []byte) (TxOutput, error) {
 	return txo, nil
 }
 
-func NewCoinBase(pubkeyHash []byte) *Transaction {
-	nonce := make([]byte, 8)
-	rand.Read(nonce)
+func NewCoinBase(pubkeyHash []byte) (*Transaction, error) {
+	nonce := make([]byte, coinbaseNonceSize)
+	_, err := rand.Read(nonce)
+	if err != nil {
+		return nil, fmt.Errorf("new coinbase tx: generate nonce: %w", err)
+	}
 
 	txin := TxInput{
 		Txid:      []byte{},
-		OutIndex:  -1,
+		OutIndex:  coinbaseOutIndex,
 		Signature: nonce,
 		Pubkey:    nil,
 	}
 
 	txout := TxOutput{
-		Value:        50,
+		Value:        coinbaseReward,
 		ScriptPubkey: pubkeyHash,
 	}
 
@@ -85,29 +96,51 @@ func NewCoinBase(pubkeyHash []byte) *Transaction {
 		Vout: []TxOutput{txout},
 	}
 
-	tx.ID = tx.Hash()
+	txID, err := tx.Hash()
+	tx.ID = txID
 
-	return tx
+	if err != nil {
+		return nil, fmt.Errorf("new coinbase tx: get coinbase tx hash  %w", err)
+	}
+
+	return tx, nil
 }
 
-func (tx *Transaction) Verify(prevOutputs map[string]TxOutput) bool {
+func (tx *Transaction) Verify(prevOutputs map[string]TxOutput) error {
 	if IsCoinBase(tx) {
-		return true
+		return nil
 	}
 
 	txCopy := tx.TrimTx()
 	for idx, input := range tx.Vin {
-		txCopy.Vin[idx].Pubkey = prevOutputs[OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()].ScriptPubkey
-		txCopy.ID = txCopy.Hash()
+
+		prevOutput, ok := prevOutputs[OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()]
+		if !ok {
+			return fmt.Errorf("verify transaction: previous output not found")
+		}
+		txCopy.Vin[idx].Pubkey = prevOutput.ScriptPubkey
+		txID, err := txCopy.Hash()
+		if err != nil {
+			return fmt.Errorf("failed to verify transaction: %w", err)
+		}
+		txCopy.ID = txID
+
 		verifyHash := sha256.Sum256(txCopy.ID)
+
+		if len(input.Signature) == 0 || len(input.Signature)%2 != 0 {
+			return fmt.Errorf("verify transaction: invalid signature length")
+		}
+		if len(input.Pubkey) != pubKeyLen {
+			return fmt.Errorf("verify transaction: invalid public key length")
+		}
 
 		r, s := &big.Int{}, &big.Int{}
 		siglen := len(input.Signature) / 2
 		r.SetBytes(input.Signature[:siglen])
 		s.SetBytes(input.Signature[siglen:])
 
-		x := new(big.Int).SetBytes(input.Pubkey[:32])
-		y := new(big.Int).SetBytes(input.Pubkey[32:])
+		x := new(big.Int).SetBytes(input.Pubkey[:pubKeyCoordLen])
+		y := new(big.Int).SetBytes(input.Pubkey[pubKeyCoordLen:])
 
 		pubKey := &ecdsa.PublicKey{
 			Curve: elliptic.P256(),
@@ -116,12 +149,12 @@ func (tx *Transaction) Verify(prevOutputs map[string]TxOutput) bool {
 		}
 
 		if !ecdsa.Verify(pubKey, verifyHash[:], r, s) {
-			return false
+			return fmt.Errorf("verify transaction: ecdsa verification failed")
 		}
 
 	}
 
-	return true
+	return nil
 
 }
 
@@ -140,5 +173,5 @@ func (tx *Transaction) TrimTx() (txcopy *Transaction) {
 }
 
 func IsCoinBase(tx *Transaction) bool {
-	return len(tx.Vin[0].Txid) == 0 && tx.Vin[0].OutIndex == -1
+	return len(tx.Vin[0].Txid) == 0 && tx.Vin[0].OutIndex == coinbaseOutIndex
 }

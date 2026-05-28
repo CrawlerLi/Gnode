@@ -38,12 +38,12 @@ func (b *Block) ComputeHash() []byte {
 	return hash[:]
 }
 
+// IntToByte converts an int64 to a byte slice.
+// This function should must excute successfully,
+// no need to return error
 func (b *Block) IntToByte(num int64) []byte {
 	var buffer bytes.Buffer
-	err := binary.Write(&buffer, binary.BigEndian, num)
-	if err != nil {
-		panic(err)
-	}
+	binary.Write(&buffer, binary.BigEndian, num)
 	return buffer.Bytes()
 }
 
@@ -75,16 +75,15 @@ func NewBlock(transcations []*Transaction, prevHash []byte) *Block {
 	return nblock
 }
 
-func (b *Block) SerializeBlock() []byte {
+func (b *Block) SerializeBlock() ([]byte, error) {
 	var buf bytes.Buffer
 
 	encoder := gob.NewEncoder(&buf)
 	err := encoder.Encode(b)
 	if err != nil {
-		panic("failed to serialize block")
+		return nil, fmt.Errorf("failed to encode block: %w", err)
 	}
-	return buf.Bytes()
-
+	return buf.Bytes(), nil
 }
 
 func DeserializedBlock(key []byte) (*Block, error) {
@@ -94,7 +93,7 @@ func DeserializedBlock(key []byte) (*Block, error) {
 
 	err := decoder.Decode(&b)
 	if err != nil {
-		return nil, fmt.Errorf("failed to deserialize block: %s", err)
+		return nil, fmt.Errorf("failed to decode block: %w", err)
 	}
 
 	return &b, nil

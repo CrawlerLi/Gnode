@@ -5,7 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"log"
+	"fmt"
 
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
 	"golang.org/x/crypto/ripemd160"
@@ -17,12 +17,17 @@ type Wallet struct {
 	Address    []byte
 }
 
-func NewWallet() *Wallet {
+const (
+	addressVersionByte = 0x00
+	checksumLen        = 4
+)
+
+func NewWallet() (*Wallet, error) {
 
 	var wallet *Wallet
 	private, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		log.Panic(err)
+		return nil, fmt.Errorf("new wallet: generate key pair: %w", err)
 	}
 	pubkey := append(private.PublicKey.X.Bytes(), private.PublicKey.Y.Bytes()...)
 
@@ -34,23 +39,20 @@ func NewWallet() *Wallet {
 		Address:    address,
 	}
 
-	return wallet
+	return wallet, nil
 }
 
 func GetAddress(pubkey []byte) (address []byte) {
 	Hashpub := sha256.Sum256(pubkey)
 	ripemd160Hasher := ripemd160.New()
-	_, err := ripemd160Hasher.Write(Hashpub[:])
-	if err != nil {
-		log.Panic(err)
-	}
+	_, _ = ripemd160Hasher.Write(Hashpub[:])
 
 	pubkeyHash := ripemd160Hasher.Sum(nil)
-	versionPayload := append([]byte{0x00}, pubkeyHash...)
+	versionPayload := append([]byte{addressVersionByte}, pubkeyHash...)
 
 	FirstSHA := sha256.Sum256(versionPayload)
 	SecondSHA := sha256.Sum256(FirstSHA[:])
-	checksum := SecondSHA[:4]
+	checksum := SecondSHA[:checksumLen]
 
 	fullPayload := append(versionPayload, checksum...)
 
@@ -62,10 +64,7 @@ func GetAddress(pubkey []byte) (address []byte) {
 func HashPubkey(pubkey []byte) []byte {
 	sha256Pubkey := sha256.Sum256(pubkey)
 	ripemd160Hasher := ripemd160.New()
-	_, err := ripemd160Hasher.Write(sha256Pubkey[:])
-	if err != nil {
-		log.Panic(err)
-	}
+	_, _ = ripemd160Hasher.Write(sha256Pubkey[:])
 
 	return ripemd160Hasher.Sum(nil)
 

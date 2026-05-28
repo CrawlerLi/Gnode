@@ -11,6 +11,12 @@ import (
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
 )
 
+const (
+	addressVersionLen  = 1
+	addressChecksumLen = 4
+	pubKeyHashLen      = 20
+)
+
 func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockChain) (*core.Transaction, error) {
 	var tx *core.Transaction
 
@@ -18,7 +24,7 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockC
 
 	payable, acc, err := bc.UTXO.FindSpendableUTXOS(amount, pubkeyHash)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find payable UTXO: %s", err)
+		return nil, fmt.Errorf("Failed to find payable UTXO: %w", err)
 	}
 
 	if acc < amount {
@@ -42,8 +48,15 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockC
 
 	}
 
-	TopubkeyHash := utils.Base58decode([]byte(to))
-	TopubkeyHash = TopubkeyHash[1 : len(TopubkeyHash)-4]
+	rawAddress := utils.Base58decode([]byte(to))
+	if len(rawAddress) < addressVersionLen+addressChecksumLen {
+		return nil, fmt.Errorf("create new tx: invalid recipient address")
+	}
+
+	TopubkeyHash := rawAddress[addressVersionLen : len(rawAddress)-addressChecksumLen]
+	if len(TopubkeyHash) != pubKeyHashLen {
+		return nil, fmt.Errorf("create new tx: invalid recipient pubkey hash length")
+	}
 
 	txout := core.TxOutput{
 		Value:        amount,
@@ -61,11 +74,15 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockC
 		Vout: Vout,
 	}
 
-	tx.ID = tx.Hash()
+	txID, err := tx.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("create new tx: hash new tx: %w", err)
+	}
+	tx.ID = txID
 
 	err = Sign(tx, prevOutputs, wallet.PrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create new tx: sign new tx: %w", err)
 	}
 
 	return tx, nil
@@ -79,13 +96,21 @@ func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey
 	txCopy := tx.TrimTx()
 
 	for index, input := range txCopy.Vin {
-		txCopy.Vin[index].Pubkey = prevOutputs[core.OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()].ScriptPubkey
-		txCopy.ID = txCopy.Hash()
+		prevOutput, ok := prevOutputs[core.OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()]
+		if !ok {
+			return fmt.Errorf("sign transaction: previous output not found")
+		}
+		txCopy.Vin[index].Pubkey = prevOutput.ScriptPubkey
+		txID, err := txCopy.Hash()
+		if err != nil {
+			return fmt.Errorf("sign transaction: hash pending transaction: %w", err)
+		}
+		txCopy.ID = txID
 		sighHash := sha256.Sum256(txCopy.ID)
 
 		r, s, err := ecdsa.Sign(rand.Reader, privateKey, sighHash[:])
 		if err != nil {
-			return fmt.Errorf("failed to sign tx")
+			return fmt.Errorf("sign transaction: ecdsa sign: %w", err)
 		}
 
 		tx.Vin[index].Signature = append(r.Bytes(), s.Bytes()...)
@@ -97,12 +122,18 @@ func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey
 
 func GetBalance(bc *core.BlockChain, address string) (int, error) {
 	var balance int
-	pubkeyHash := utils.Base58decode([]byte(address))
-	pubkeyHash = pubkeyHash[1 : len(pubkeyHash)-4]
+	rawAddress := utils.Base58decode([]byte(address))
+	if len(rawAddress) < addressVersionLen+addressChecksumLen {
+		return 0, fmt.Errorf("get balance: invalid address")
+	}
+	pubkeyHash := rawAddress[addressVersionLen : len(rawAddress)-addressChecksumLen]
+	if len(pubkeyHash) != pubKeyHashLen {
+		return 0, fmt.Errorf("get balance: invalid pubkey hash length")
+	}
 
 	utxos, err := bc.UTXO.Snapshot()
 	if err != nil {
-		return 0, fmt.Errorf("fail to snapshot UTXO: %s", err)
+		return 0, fmt.Errorf("fail to snapshot UTXO: %w", err)
 	}
 	for _, utxo := range utxos {
 		if string(utxo.ScriptPubkey) == string(pubkeyHash) {
