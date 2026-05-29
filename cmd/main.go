@@ -13,18 +13,18 @@ import (
 const testDBFile = "test_temp.db"
 
 func main() {
-	if err := run(); err != nil {
+	if err := SecondRun(); err != nil {
 		log.Printf("fatal: %v", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	Alice, err := crypto.NewWallet()
+func FirstRun() error {
+	Alice, err := wallet.NewWallet()
 	if err != nil {
 		return fmt.Errorf("failed to create Alice wallet: %w", err)
 	}
-	Bob, err := crypto.NewWallet()
+	Bob, err := wallet.NewWallet()
 	if err != nil {
 		return fmt.Errorf("failed to create Bob wallet: %w", err)
 	}
@@ -34,7 +34,7 @@ func run() error {
 	fmt.Println("The address of Bob is ", string(Bob.Address))
 	fmt.Println()
 
-	bc, err := core.NewBlockChain(crypto.HashPubkey(Alice.Publickey), testDBFile)
+	bc, err := core.InitBlockChain(crypto.HashPubkey(Alice.Publickey), testDBFile)
 
 	if err != nil {
 		return fmt.Errorf("failed to create block chain: %w", err)
@@ -44,9 +44,11 @@ func run() error {
 		if err := bc.DB.Close(); err != nil {
 			fmt.Printf("failed to close database: %s", err)
 		}
-		if err := os.Remove(testDBFile); err != nil {
-			fmt.Printf("failed to remove database file: %s", err)
-		}
+
+		// testDBFile is only used for testing, so we can remove it after the program finishes
+		// if err := os.Remove(testDBFile); err != nil {
+		// 	fmt.Printf("failed to remove database file: %s", err)
+		// }
 	}()
 
 	fmt.Println("The gensis block has been created!")
@@ -120,5 +122,20 @@ func run() error {
 
 	fmt.Println("You are good, man!")
 
+	return nil
+}
+
+func SecondRun() error {
+
+	bc, err := core.OpenBlockChain(testDBFile)
+
+	if err != nil {
+		return fmt.Errorf("failed to open block chain: %w", err)
+	}
+
+	err = bc.Print()
+	if err != nil {
+		return fmt.Errorf("failed to print blockchain: %w", err)
+	}
 	return nil
 }

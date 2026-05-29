@@ -81,7 +81,7 @@ func (b *Block) SerializeBlock() ([]byte, error) {
 	encoder := gob.NewEncoder(&buf)
 	err := encoder.Encode(b)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode block: %w", err)
+		return nil, fmt.Errorf("encode block: %w", err)
 	}
 	return buf.Bytes(), nil
 }
@@ -93,7 +93,7 @@ func DeserializedBlock(key []byte) (*Block, error) {
 
 	err := decoder.Decode(&b)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode block: %w", err)
+		return nil, fmt.Errorf("decode block: %w", err)
 	}
 
 	return &b, nil

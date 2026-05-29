@@ -20,7 +20,15 @@ type boltCursor struct {
 	rawCursor *bolt.Cursor
 }
 
-func NewDB(path string) (DB, error) {
+func InitDB(path string) (DB, error) {
+	client, err := bolt.Open(path, 0600, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &boltDB{client: client}, nil
+}
+
+func OpenDB(path string) (DB, error) {
 	client, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return nil, err

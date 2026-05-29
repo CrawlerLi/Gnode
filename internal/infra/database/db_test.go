@@ -7,10 +7,10 @@ import (
 
 const testDBFile = "test_temp.db"
 
-func TestNewDB(t *testing.T) {
+func TestInitDB(t *testing.T) {
 	defer os.Remove(testDBFile)
 
-	db, err := NewDB(testDBFile)
+	db, err := InitDB(testDBFile)
 	if err != nil {
 		t.Fatalf("Failed to create database")
 	}
@@ -24,7 +24,7 @@ func TestNewDB(t *testing.T) {
 func TestCreatBucket(t *testing.T) {
 
 	defer os.Remove(testDBFile)
-	db, _ := NewDB(testDBFile)
+	db, _ := InitDB(testDBFile)
 	err := db.CreateBucket("testBucket")
 	if err != nil {
 		t.Fatalf("Failed to create Bucket")
@@ -37,7 +37,7 @@ func TestCreatBucket(t *testing.T) {
 func TestPutAndGet(t *testing.T) {
 	defer os.Remove(testDBFile)
 
-	db, _ := NewDB(testDBFile)
+	db, _ := InitDB(testDBFile)
 	defer db.Close()
 
 	db.CreateBucket("testBucket")
@@ -59,7 +59,7 @@ func TestPutAndGet(t *testing.T) {
 func TestDelete(t *testing.T) {
 	defer os.Remove(testDBFile)
 
-	db, _ := NewDB(testDBFile)
+	db, _ := InitDB(testDBFile)
 	defer db.Close()
 
 	db.CreateBucket("testBucket")

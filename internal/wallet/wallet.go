@@ -8,8 +8,13 @@ import (
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
-	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
 )
+
+type Wallet struct {
+	PrivateKey *ecdsa.PrivateKey
+	Publickey  []byte
+	Address    []byte
+}
 
 const (
 	addressVersionLen  = 1
@@ -17,7 +22,29 @@ const (
 	pubKeyHashLen      = 20
 )
 
-func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockChain) (*core.Transaction, error) {
+func NewWallet() (*Wallet, error) {
+
+	var wallet *Wallet
+	private, pubkey, err := crypto.GenerateKeyPair()
+	if err != nil {
+		return nil, fmt.Errorf("new wallet: generate key pair: %w", err)
+	}
+
+	address, err := crypto.PublicKeyToAddress(pubkey)
+	if err != nil {
+		return nil, fmt.Errorf("new wallet: convert public key to address: %w", err)
+	}
+
+	wallet = &Wallet{
+		PrivateKey: private,
+		Publickey:  pubkey,
+		Address:    address,
+	}
+
+	return wallet, nil
+}
+
+func NewTrasaction(wallet *Wallet, to string, amount int, bc *core.BlockChain) (*core.Transaction, error) {
 	var tx *core.Transaction
 
 	pubkeyHash := crypto.HashPubkey(wallet.Publickey)
@@ -48,12 +75,10 @@ func NewTrasaction(wallet *crypto.Wallet, to string, amount int, bc *core.BlockC
 
 	}
 
-	rawAddress := utils.Base58decode([]byte(to))
-	if len(rawAddress) < addressVersionLen+addressChecksumLen {
-		return nil, fmt.Errorf("create new tx: invalid recipient address")
+	TopubkeyHash, err := crypto.AddressToPubkeyHash([]byte(to))
+	if err != nil {
+		return nil, fmt.Errorf("create new tx: convert recipient address to pubkey hash: %w", err)
 	}
-
-	TopubkeyHash := rawAddress[addressVersionLen : len(rawAddress)-addressChecksumLen]
 	if len(TopubkeyHash) != pubKeyHashLen {
 		return nil, fmt.Errorf("create new tx: invalid recipient pubkey hash length")
 	}
@@ -122,13 +147,9 @@ func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey
 
 func GetBalance(bc *core.BlockChain, address string) (int, error) {
 	var balance int
-	rawAddress := utils.Base58decode([]byte(address))
-	if len(rawAddress) < addressVersionLen+addressChecksumLen {
-		return 0, fmt.Errorf("get balance: invalid address")
-	}
-	pubkeyHash := rawAddress[addressVersionLen : len(rawAddress)-addressChecksumLen]
-	if len(pubkeyHash) != pubKeyHashLen {
-		return 0, fmt.Errorf("get balance: invalid pubkey hash length")
+	pubkeyHash, err := crypto.AddressToPubkeyHash([]byte(address))
+	if err != nil {
+		return 0, fmt.Errorf("get balance: convert address to pubkey hash: %w", err)
 	}
 
 	utxos, err := bc.UTXO.Snapshot()
