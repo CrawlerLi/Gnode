@@ -279,12 +279,14 @@ func (bc *BlockChain) Print() error {
 
 	fmt.Println()
 	fmt.Printf("+++++++++ 区块链打印开始，当前区块高度 %d ++++++++++\n", bc.BestState.BlockHeight)
+	fmt.Println()
 	for i, block := range blocks {
 		fmt.Printf("========= 区块 %d =========\n", len(blocks)-i-1)
 		fmt.Printf("当前区块哈希: %x\n", block.Hash)
 		fmt.Printf("上一个区块哈希: %x\n", block.PrevHash)
-		fmt.Println("++++++++++ 链结束符 ++++++++++")
 		fmt.Println()
 	}
+
+	fmt.Println("+++++++++++++++++++++ 链结束符 +++++++++++++++++++++")
 	return nil
 }

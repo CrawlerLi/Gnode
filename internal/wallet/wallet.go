@@ -1,9 +1,11 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/gob"
 	"fmt"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
@@ -15,12 +17,6 @@ type Wallet struct {
 	Publickey  []byte
 	Address    []byte
 }
-
-const (
-	addressVersionLen  = 1
-	addressChecksumLen = 4
-	pubKeyHashLen      = 20
-)
 
 func NewWallet() (*Wallet, error) {
 
@@ -44,76 +40,27 @@ func NewWallet() (*Wallet, error) {
 	return wallet, nil
 }
 
-func NewTrasaction(wallet *Wallet, to string, amount int, bc *core.BlockChain) (*core.Transaction, error) {
-	var tx *core.Transaction
-
-	pubkeyHash := crypto.HashPubkey(wallet.Publickey)
-
-	payable, acc, err := bc.UTXO.FindSpendableUTXOS(amount, pubkeyHash)
+func (w *Wallet) SerializeWallet() ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	err := encoder.Encode(w)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find payable UTXO: %w", err)
+		return nil, fmt.Errorf("encode walllet: %w", err)
 	}
-
-	if acc < amount {
-		return nil, fmt.Errorf("banlance do not enough")
-	}
-
-	var Vin []core.TxInput
-	prevOutputs := make(map[string]core.TxOutput)
-
-	for _, spendableUTXO := range payable {
-
-		txID, idx := spendableUTXO.OutPoint.TxID, spendableUTXO.OutPoint.OutIndex
-		txin := core.TxInput{
-			Txid:     txID,
-			OutIndex: idx,
-			Pubkey:   wallet.Publickey,
-		}
-
-		Vin = append(Vin, txin)
-		prevOutputs[spendableUTXO.OutPoint.String()] = spendableUTXO.Output
-
-	}
-
-	TopubkeyHash, err := crypto.AddressToPubkeyHash([]byte(to))
-	if err != nil {
-		return nil, fmt.Errorf("create new tx: convert recipient address to pubkey hash: %w", err)
-	}
-	if len(TopubkeyHash) != pubKeyHashLen {
-		return nil, fmt.Errorf("create new tx: invalid recipient pubkey hash length")
-	}
-
-	txout := core.TxOutput{
-		Value:        amount,
-		ScriptPubkey: TopubkeyHash,
-	}
-
-	Vout := []core.TxOutput{txout}
-
-	if acc > amount {
-		Vout = append(Vout, core.TxOutput{Value: acc - amount, ScriptPubkey: pubkeyHash})
-	}
-
-	tx = &core.Transaction{
-		Vin:  Vin,
-		Vout: Vout,
-	}
-
-	txID, err := tx.Hash()
-	if err != nil {
-		return nil, fmt.Errorf("create new tx: hash new tx: %w", err)
-	}
-	tx.ID = txID
-
-	err = Sign(tx, prevOutputs, wallet.PrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("create new tx: sign new tx: %w", err)
-	}
-
-	return tx, nil
+	return buffer.Bytes(), nil
 }
 
-func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey *ecdsa.PrivateKey) error {
+func DeserializedBlock(key []byte) (*Wallet, error) {
+	var w *Wallet
+	decoder := gob.NewDecoder(bytes.NewReader(key))
+	err := decoder.Decode(w)
+	if err != nil {
+		return nil, fmt.Errorf("decode wallet: %w:", err)
+	}
+	return w, nil
+}
+
+func (w *Wallet) Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput) error {
 	if core.IsCoinBase(tx) {
 		return nil
 	}
@@ -133,7 +80,7 @@ func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey
 		txCopy.ID = txID
 		sighHash := sha256.Sum256(txCopy.ID)
 
-		r, s, err := ecdsa.Sign(rand.Reader, privateKey, sighHash[:])
+		r, s, err := ecdsa.Sign(rand.Reader, w.PrivateKey, sighHash[:])
 		if err != nil {
 			return fmt.Errorf("sign transaction: ecdsa sign: %w", err)
 		}
@@ -143,24 +90,4 @@ func Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput, privateKey
 
 	return nil
 
-}
-
-func GetBalance(bc *core.BlockChain, address string) (int, error) {
-	var balance int
-	pubkeyHash, err := crypto.AddressToPubkeyHash([]byte(address))
-	if err != nil {
-		return 0, fmt.Errorf("get balance: convert address to pubkey hash: %w", err)
-	}
-
-	utxos, err := bc.UTXO.Snapshot()
-	if err != nil {
-		return 0, fmt.Errorf("fail to snapshot UTXO: %w", err)
-	}
-	for _, utxo := range utxos {
-		if string(utxo.ScriptPubkey) == string(pubkeyHash) {
-			balance += utxo.Value
-		}
-	}
-
-	return balance, nil
 }

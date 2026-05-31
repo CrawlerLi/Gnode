@@ -137,5 +137,26 @@ func SecondRun() error {
 	if err != nil {
 		return fmt.Errorf("failed to print blockchain: %w", err)
 	}
+
+	Peter, err := wallet.NewWallet()
+	if err != nil {
+		return fmt.Errorf("failed to create wallet: %w", err)
+	}
+	coinbaseTx, err := core.NewCoinBase(crypto.HashPubkey(Peter.Publickey))
+	if err != nil {
+		return fmt.Errorf("failed to create coinbase transaction: %w", err)
+	}
+
+	err = bc.AddBlock([]*core.Transaction{coinbaseTx})
+	if err != nil {
+		return fmt.Errorf("failed to add block: %w", err)
+	}
+	fmt.Println("The third block has been created, all transactions have benn verified!")
+	err = bc.Print()
+	if err != nil {
+		return fmt.Errorf("failed to print blockchain: %w", err)
+	}
+
 	return nil
+
 }
