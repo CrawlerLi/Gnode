@@ -45,7 +45,7 @@ func (s *WalletStorage) Get(username string) (*Wallet, error) {
 			return fmt.Errorf("failed to find wallet")
 		}
 
-		decode, err := DeserializedBlock(bytesWallet)
+		decode, err := DeserializedWallet(bytesWallet)
 
 		if err != nil {
 			return fmt.Errorf("Deserialize wallet: %w", err)
@@ -69,7 +69,7 @@ func (s *WalletStorage) List() (map[string]*Wallet, error) {
 		cursor := walletBucket.Cursor()
 
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-			decode, err := DeserializedBlock(v)
+			decode, err := DeserializedWallet(v)
 			if err != nil {
 				return fmt.Errorf("Deserialize wallet: %w", err)
 			}

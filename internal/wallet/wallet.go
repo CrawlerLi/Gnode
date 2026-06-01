@@ -16,9 +16,10 @@ type Wallet struct {
 	PrivateKey *ecdsa.PrivateKey
 	Publickey  []byte
 	Address    []byte
+	Role       string
 }
 
-func NewWallet() (*Wallet, error) {
+func NewWallet(role string) (*Wallet, error) {
 
 	var wallet *Wallet
 	private, pubkey, err := crypto.GenerateKeyPair()
@@ -35,6 +36,7 @@ func NewWallet() (*Wallet, error) {
 		PrivateKey: private,
 		Publickey:  pubkey,
 		Address:    address,
+		Role:       role,
 	}
 
 	return wallet, nil
@@ -50,14 +52,15 @@ func (w *Wallet) SerializeWallet() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func DeserializedBlock(key []byte) (*Wallet, error) {
-	var w *Wallet
+func DeserializedWallet(key []byte) (*Wallet, error) {
+	//be carefule: don not use pointer define here, otherwise it will cause error when decode, because the gob decoder will try to assign value to the pointer, but the pointer is nil, so it will cause panic
+	var w Wallet
 	decoder := gob.NewDecoder(bytes.NewReader(key))
-	err := decoder.Decode(w)
+	err := decoder.Decode(&w)
 	if err != nil {
-		return nil, fmt.Errorf("decode wallet: %w:", err)
+		return nil, fmt.Errorf("decode wallet: %w", err)
 	}
-	return w, nil
+	return &w, nil
 }
 
 func (w *Wallet) Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput) error {

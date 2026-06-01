@@ -1,4 +1,4 @@
-package server
+package service
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
 )
 
-type WalletServer struct {
+type WalletService struct {
 	store *wallet.WalletStorage
 	bc    *core.BlockChain
 }
@@ -16,11 +16,12 @@ type WalletServer struct {
 type WalletInfo struct {
 	Username  string
 	Address   string
-	PublicKey string // optional: hex
+	PublicKey string
+	Role      string
 }
 
 type TransferReslut struct {
-	txID string
+	TxID string
 }
 
 const (
@@ -29,12 +30,12 @@ const (
 	pubKeyHashLen      = 20
 )
 
-func NewWalletServer(store *wallet.WalletStorage, bc *core.BlockChain) *WalletServer {
-	return &WalletServer{store: store, bc: bc}
+func NewWalletService(store *wallet.WalletStorage, bc *core.BlockChain) *WalletService {
+	return &WalletService{store: store, bc: bc}
 }
 
-func (ws *WalletServer) CreateWallet(username string) error {
-	newWallet, err := wallet.NewWallet()
+func (ws *WalletService) CreateWallet(username string, role string) error {
+	newWallet, err := wallet.NewWallet(role)
 	if err != nil {
 		return fmt.Errorf("ceate wallet: generate wallet in memory: %w", err)
 	}
@@ -47,7 +48,7 @@ func (ws *WalletServer) CreateWallet(username string) error {
 	return nil
 }
 
-func (ws *WalletServer) GetWallet(username string) (*WalletInfo, error) {
+func (ws *WalletService) GetWallet(username string) (*WalletInfo, error) {
 	wallet, err := ws.store.Get(username)
 	if err != nil {
 		return nil, fmt.Errorf("get wallet info : %w", err)
@@ -57,13 +58,34 @@ func (ws *WalletServer) GetWallet(username string) (*WalletInfo, error) {
 		Username:  username,
 		Address:   string(wallet.Address),
 		PublicKey: fmt.Sprintf("%x", wallet.Publickey),
+		Role:      wallet.Role,
 	}
 
 	return wInfo, nil
 
 }
 
-func (ws *WalletServer) ListWallets() ([]*WalletInfo, error) {
+func (ws *WalletService) GetWorkerWallet() (*WalletInfo, error) {
+	walletsList, err := ws.store.List()
+	if err != nil {
+		return nil, fmt.Errorf("Get worker wallet: get wallets list: %w", err)
+	}
+
+	for username, wallet := range walletsList {
+		if wallet.Role == "miner" {
+			wInfo := &WalletInfo{
+				Username:  username,
+				Address:   string(wallet.Address),
+				PublicKey: fmt.Sprintf("%x", wallet.Publickey),
+				Role:      wallet.Role,
+			}
+			return wInfo, nil
+		}
+	}
+	return nil, fmt.Errorf("get worker wallet: %w", ErrWorkerWalletNotFound)
+}
+
+func (ws *WalletService) ListWallets() ([]*WalletInfo, error) {
 	walletsList, err := ws.store.List()
 	if err != nil {
 		return nil, fmt.Errorf("List wallets: get wallets list: %w", err)
@@ -75,13 +97,14 @@ func (ws *WalletServer) ListWallets() ([]*WalletInfo, error) {
 			Username:  username,
 			Address:   string(wallet.Address),
 			PublicKey: fmt.Sprintf("%x", wallet.Publickey),
+			Role:      wallet.Role,
 		}
 		walletInfolist = append(walletInfolist, wInfo)
 	}
 	return walletInfolist, nil
 }
 
-func (ws *WalletServer) DetelteWallet(username string) error {
+func (ws *WalletService) DetelteWallet(username string) error {
 	err := ws.store.Delete(username)
 	if err != nil {
 		return err
@@ -89,7 +112,7 @@ func (ws *WalletServer) DetelteWallet(username string) error {
 	return nil
 }
 
-func (ws *WalletServer) GetBalance(username string) (int, error) {
+func (ws *WalletService) GetBalance(username string) (int, error) {
 	wallet, err := ws.store.Get(username)
 	if err != nil {
 		return 0, fmt.Errorf("get banlance: get wallet in database: %w", err)
@@ -114,7 +137,7 @@ func (ws *WalletServer) GetBalance(username string) (int, error) {
 	return balance, nil
 }
 
-func (ws *WalletServer) Transfer(fromUser string, to string, amount int, bc *core.BlockChain) (*TransferReslut, error) {
+func (ws *WalletService) Transfer(fromUser string, to string, amount int) (*TransferReslut, error) {
 	if fromUser == "" || to == "" || amount <= 0 {
 		return nil, fmt.Errorf("invalid transfer params")
 	}
@@ -127,7 +150,7 @@ func (ws *WalletServer) Transfer(fromUser string, to string, amount int, bc *cor
 	var tx *core.Transaction
 	pubkeyHash := crypto.HashPubkey(wallet.Publickey)
 
-	payable, acc, err := bc.UTXO.FindSpendableUTXOS(amount, pubkeyHash)
+	payable, acc, err := ws.bc.UTXO.FindSpendableUTXOS(amount, pubkeyHash)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to find payable UTXO: %w", err)
 	}
@@ -199,5 +222,5 @@ func (ws *WalletServer) Transfer(fromUser string, to string, amount int, bc *cor
 		return nil, fmt.Errorf("Transfer: write data on-chian %w", err)
 	}
 
-	return &TransferReslut{txID: fmt.Sprintf("%x", tx.ID)}, nil
+	return &TransferReslut{TxID: fmt.Sprintf("%x", tx.ID)}, nil
 }
