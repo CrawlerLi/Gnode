@@ -1,13 +1,11 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/wallet"
-	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
 )
 
 type BlockchainService struct {
@@ -16,56 +14,54 @@ type BlockchainService struct {
 }
 
 type ChainInfo struct {
-	Height int
-	Blocks []*core.Block
+	Height   int
+	LastHash []byte
+	Blocks   []*core.Block
 }
 
-func InitChain(minerAddress string, chainDBFile string, walletDBFile string) (*ChainInfo, error) {
-	if minerAddress == "" {
+func (bls *BlockchainService) RequireChainInfo() (*ChainInfo, error) {
+	var blocks []*core.Block
 
-		//here init wallet storage and wallet service, it may be reviesed later.
-		walletDB, err := database.OpenDB(walletDBFile)
-		if err != nil {
-			return nil, fmt.Errorf("init chain: open wallet db: %w", err)
-		}
-		defer walletDB.Close()
-
-		if err := walletDB.CreateBucket("Wallet"); err != nil {
-			return nil, fmt.Errorf("init chain: create wallet bucket: %w", err)
+	err := bls.chain.DB.View(func(tx database.Tx) error {
+		blockBucket := tx.Bucket("blocks")
+		if blockBucket == nil {
+			return fmt.Errorf("find blocks bucket")
 		}
 
-		walletStorage := wallet.NewWalletStorage(walletDB)
-		walletService := NewWalletService(walletStorage, nil)
+		LastBlockHash := bls.chain.BestState.Hash
+		if LastBlockHash == nil {
+			return fmt.Errorf("blocks print: check LastBlockHash")
+		}
 
-		workerWalletInfo, err := walletService.GetWorkerWallet()
-		if err != nil {
-			if errors.Is(err, ErrWorkerWalletNotFound) {
-				if err := walletService.CreateWallet("worker", "miner"); err != nil {
-					return nil, fmt.Errorf("init chain: create worker wallet: %w", err)
-				}
-
-				workerWalletInfo, err = walletService.GetWorkerWallet()
-				if err != nil {
-					return nil, fmt.Errorf("init chain: reload worker wallet: %w", err)
-				}
-			} else {
-				return nil, fmt.Errorf("init chain: get worker wallet: %w", err)
+		hashPointer := LastBlockHash
+		for {
+			blockBytes := blockBucket.Get(hashPointer)
+			if blockBytes == nil {
+				return fmt.Errorf("blocks print: get block by hash: %x", hashPointer)
 			}
+			block, err := core.DeserializedBlock(blockBytes)
+			if err != nil {
+				return fmt.Errorf("blocks print: deserialize block: %w", err)
+			}
+
+			blocks = append(blocks, block)
+			if len(block.PrevHash) == 0 {
+				break
+			}
+
+			hashPointer = block.PrevHash
+
 		}
+		return nil
+	})
 
-		minerAddress = workerWalletInfo.Address
-	}
-
-	minerPubkeyHash, err := crypto.AddressToPubkeyHash([]byte(minerAddress))
 	if err != nil {
-		return nil, fmt.Errorf("init chain: parse miner address: %w", err)
+		return nil, fmt.Errorf("check blockchain info:view in db: %w", err)
 	}
 
-	bc, err := core.InitBlockChain(minerPubkeyHash, chainDBFile)
-	if err != nil {
-		return nil, fmt.Errorf("init chain: initialize blockchain: %w", err)
-	}
-	defer bc.DB.Close()
-
-	return &ChainInfo{Height: bc.BestState.BlockHeight}, nil
+	return &ChainInfo{
+		Height:   bls.chain.BestState.BlockHeight,
+		LastHash: bls.chain.BestState.Hash,
+		Blocks:   blocks,
+	}, nil
 }

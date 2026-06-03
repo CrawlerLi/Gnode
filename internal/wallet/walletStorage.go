@@ -7,16 +7,16 @@ import (
 )
 
 type WalletStorage struct {
-	db database.DB
+	DB database.DB
 }
 
 func NewWalletStorage(db database.DB) *WalletStorage {
-	return &WalletStorage{db: db}
+	return &WalletStorage{DB: db}
 }
 
 func (s *WalletStorage) Save(username string, w *Wallet) error {
 
-	err := s.db.Update(func(tx database.Tx) error {
+	err := s.DB.Update(func(tx database.Tx) error {
 		walletBucket := tx.Bucket("Wallet")
 		bytesWallet, err := w.SerializeWallet()
 		if err != nil {
@@ -38,7 +38,7 @@ func (s *WalletStorage) Save(username string, w *Wallet) error {
 func (s *WalletStorage) Get(username string) (*Wallet, error) {
 
 	var w *Wallet
-	err := s.db.View(func(tx database.Tx) error {
+	err := s.DB.View(func(tx database.Tx) error {
 		walletBucket := tx.Bucket("Wallet")
 		bytesWallet := walletBucket.Get([]byte(username))
 		if bytesWallet == nil {
@@ -64,7 +64,7 @@ func (s *WalletStorage) Get(username string) (*Wallet, error) {
 func (s *WalletStorage) List() (map[string]*Wallet, error) {
 	wallets := make(map[string]*Wallet)
 
-	err := s.db.View(func(tx database.Tx) error {
+	err := s.DB.View(func(tx database.Tx) error {
 		walletBucket := tx.Bucket("Wallet")
 		cursor := walletBucket.Cursor()
 
@@ -86,7 +86,7 @@ func (s *WalletStorage) List() (map[string]*Wallet, error) {
 
 func (s *WalletStorage) Delete(username string) error {
 
-	err := s.db.Update(func(tx database.Tx) error {
+	err := s.DB.Update(func(tx database.Tx) error {
 		walletBucket := tx.Bucket("Wallet")
 		err := walletBucket.Delete([]byte(username))
 		if err != nil {

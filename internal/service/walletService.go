@@ -35,6 +35,9 @@ func NewWalletService(store *wallet.WalletStorage, bc *core.BlockChain) *WalletS
 }
 
 func (ws *WalletService) CreateWallet(username string, role string) error {
+	if role == "" {
+		role = "user"
+	}
 	newWallet, err := wallet.NewWallet(role)
 	if err != nil {
 		return fmt.Errorf("ceate wallet: generate wallet in memory: %w", err)

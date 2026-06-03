@@ -11,7 +11,6 @@ import (
 	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/service"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/wallet"
-	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
 )
 
 const defaultDBFile = "cmd/mini_bitcoin.db"
@@ -71,12 +70,12 @@ func run(args []string) error {
 		if len(args) != 2 {
 			return fmt.Errorf("usage: init <minerAddress>")
 		}
-		return initChain(args[1], defaultDBFile)
+		return initApp(args[1], defaultDBFile, defaultWalletFile)
 	case "create-wallet":
 		if len(args) != 2 {
-			return fmt.Errorf("usage: create-wallet <username>")
+			return fmt.Errorf("usage: create-wallet <username>[role]")
 		}
-		return createWallet(args[1], defaultWalletFile)
+		return createWallet(args[1], args[2], defaultWalletFile)
 	case "get-wallet":
 		if len(args) != 2 {
 			return fmt.Errorf("usage: get-wallet <username>")
@@ -105,32 +104,42 @@ func run(args []string) error {
 		if len(args) != 1 {
 			return fmt.Errorf("usage: print")
 		}
-		return printChain(defaultDBFile)
+		return printChain(defaultDBFile, defaultWalletFile)
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
 }
 
-func initChain(minerAddress, dbFile string) error {
-	minerPubKeyHash, err := crypto.AddressToPubkeyHash([]byte(minerAddress))
+func PrintchainInfo(chainInfo *service.ChainInfo) error {
+	blocks := chainInfo.Blocks
+	blockHeight := chainInfo.Height
+	fmt.Println()
+	fmt.Printf("+++++++++ 区块链打印开始，当前区块高度 %d ++++++++++\n", blockHeight)
+	for i, block := range blocks {
+		fmt.Printf("========= 区块 %d =========\n", len(blocks)-i-1)
+		fmt.Printf("当前区块哈希: %x\n", block.Hash)
+		fmt.Printf("上一个区块哈希: %x\n", block.PrevHash)
+		fmt.Println("++++++++++ 链结束符 ++++++++++")
+		fmt.Println()
+	}
+	return nil
+}
+
+func initApp(minerAddress, dbFile string, dbWalletFile string) error {
+	server, err := service.InitApp(minerAddress, dbFile, dbWalletFile)
 	if err != nil {
-		return fmt.Errorf("init chain: parse miner address: %w", err)
+		return fmt.Errorf("init chain: open services: %w", err)
+	}
+	defer server.Close()
+
+	chainInfo, err := server.ChainService.RequireChainInfo()
+
+	if server != nil {
+		fmt.Println("node and chain initialized")
+		PrintchainInfo(chainInfo)
+
 	}
 
-	bc, err := core.InitBlockChain(minerPubKeyHash, dbFile)
-	if err != nil {
-		return fmt.Errorf("init chain: %w", err)
-	}
-	defer bc.DB.Close()
-
-	err = bc.DB.CreateBucket("Wallet")
-	if err != nil {
-		return fmt.Errorf("init chain: create wallet bucket: %w", err)
-	}
-
-	fmt.Println("blockchain initialized")
-	fmt.Printf("db: %s\n", dbFile)
-	fmt.Printf("genesis reward to: %s\n", minerAddress)
 	return nil
 }
 
@@ -144,14 +153,14 @@ func openWalletService(dbFile string) (*service.WalletService, func() error, err
 	return ws, bc.DB.Close, nil
 }
 
-func createWallet(username, dbFile string) error {
+func createWallet(username, role, dbFile string) error {
 	ws, closeFn, err := openWalletService(dbFile)
 	if err != nil {
 		return err
 	}
 	defer closeFn()
 
-	err = ws.CreateWallet(username)
+	err = ws.CreateWallet(username, role)
 	if err != nil {
 		return fmt.Errorf("create wallet: %w", err)
 	}
@@ -166,7 +175,7 @@ func createWallet(username, dbFile string) error {
 }
 
 func getWallet(username, dbFile string) error {
-	ws, closeFn, err := openWalletServer(dbFile)
+	ws, closeFn, err := openWalletService(dbFile)
 	if err != nil {
 		return err
 	}
@@ -184,7 +193,7 @@ func getWallet(username, dbFile string) error {
 }
 
 func listWallets(dbFile string) error {
-	ws, closeFn, err := openWalletServer(dbFile)
+	ws, closeFn, err := openWalletService(dbFile)
 	if err != nil {
 		return err
 	}
@@ -207,7 +216,7 @@ func listWallets(dbFile string) error {
 }
 
 func getBalance(username, dbFile string) error {
-	ws, closeFn, err := openWalletServer(dbFile)
+	ws, closeFn, err := openWalletService(dbFile)
 	if err != nil {
 		return err
 	}
@@ -223,7 +232,7 @@ func getBalance(username, dbFile string) error {
 }
 
 func transfer(fromUser, toAddress string, amount int, dbFile string) error {
-	ws, closeFn, err := openWalletServer(dbFile)
+	ws, closeFn, err := openWalletService(dbFile)
 	if err != nil {
 		return err
 	}
@@ -238,14 +247,18 @@ func transfer(fromUser, toAddress string, amount int, dbFile string) error {
 	return nil
 }
 
-func printChain(dbFile string) error {
-	bc, err := core.OpenBlockChain(dbFile)
+func printChain(chaindbFile string, walletdbFile string) error {
+	appserver, err := service.OpenServices(chaindbFile, walletdbFile)
 	if err != nil {
-		return fmt.Errorf("open blockchain: %w", err)
+		return fmt.Errorf("open appserver: %w", err)
 	}
-	defer bc.DB.Close()
+	defer appserver.Close()
 
-	return bc.Print()
+	chainInfo, err := appserver.ChainService.RequireChainInfo()
+	if err != nil {
+		return fmt.Errorf("print chain: require blockchain info: %w", err)
+	}
+	return PrintchainInfo(chainInfo)
 }
 
 func printUsage() {
