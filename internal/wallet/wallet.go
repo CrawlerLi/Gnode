@@ -3,10 +3,12 @@ package wallet
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
+	"math/big"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
 	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
@@ -17,6 +19,15 @@ type Wallet struct {
 	Publickey  []byte
 	Address    []byte
 	Role       string
+}
+
+type serializedWallet struct {
+	PrivateD  []byte
+	PublicX   []byte
+	PublicY   []byte
+	Publickey []byte
+	Address   []byte
+	Role      string
 }
 
 func NewWallet(role string) (*Wallet, error) {
@@ -43,9 +54,22 @@ func NewWallet(role string) (*Wallet, error) {
 }
 
 func (w *Wallet) SerializeWallet() ([]byte, error) {
+	if w == nil || w.PrivateKey == nil {
+		return nil, fmt.Errorf("encode wallet: empty wallet private key")
+	}
+
+	sw := serializedWallet{
+		PrivateD:  w.PrivateKey.D.Bytes(),
+		PublicX:   w.PrivateKey.PublicKey.X.Bytes(),
+		PublicY:   w.PrivateKey.PublicKey.Y.Bytes(),
+		Publickey: w.Publickey,
+		Address:   w.Address,
+		Role:      w.Role,
+	}
+
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
-	err := encoder.Encode(w)
+	err := encoder.Encode(sw)
 	if err != nil {
 		return nil, fmt.Errorf("encode walllet: %w", err)
 	}
@@ -53,12 +77,27 @@ func (w *Wallet) SerializeWallet() ([]byte, error) {
 }
 
 func DeserializedWallet(key []byte) (*Wallet, error) {
-	//be carefule: don not use pointer define here, otherwise it will cause error when decode, because the gob decoder will try to assign value to the pointer, but the pointer is nil, so it will cause panic
-	var w Wallet
+	var sw serializedWallet
 	decoder := gob.NewDecoder(bytes.NewReader(key))
-	err := decoder.Decode(&w)
+	err := decoder.Decode(&sw)
 	if err != nil {
 		return nil, fmt.Errorf("decode wallet: %w", err)
+	}
+
+	privateKey := &ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     new(big.Int).SetBytes(sw.PublicX),
+			Y:     new(big.Int).SetBytes(sw.PublicY),
+		},
+		D: new(big.Int).SetBytes(sw.PrivateD),
+	}
+
+	w := Wallet{
+		PrivateKey: privateKey,
+		Publickey:  sw.Publickey,
+		Address:    sw.Address,
+		Role:       sw.Role,
 	}
 	return &w, nil
 }

@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
+	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/service"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/wallet"
 )
 
 const defaultDBFile = "cmd/mini_bitcoin.db"
-const defaultWalletFile = "cmd/mini_bitcoin_wallet.dat"
+const defaultWalletFile = "cmd/mini_bitcoin_wallet.db"
 
 func main() {
 	args := os.Args[1:]
@@ -67,15 +67,17 @@ func run(args []string) error {
 		printUsage()
 		return nil
 	case "init":
-		if len(args) != 2 {
-			return fmt.Errorf("usage: init <minerAddress>")
+		minerAdress, err := InitParsing(args)
+		if err != nil {
+			return fmt.Errorf("%w :usage: init <minerAddress>", err)
 		}
-		return initApp(args[1], defaultDBFile, defaultWalletFile)
+		return initApp(minerAdress, defaultDBFile, defaultWalletFile)
 	case "create-wallet":
-		if len(args) != 2 {
-			return fmt.Errorf("usage: create-wallet <username>[role]")
+		username, role, err := CreatWalletParsing(args)
+		if err != nil {
+			return fmt.Errorf("%w: usage: create-wallet <username>[role(optional)]", err)
 		}
-		return createWallet(args[1], args[2], defaultWalletFile)
+		return createWallet(username, role, defaultWalletFile)
 	case "get-wallet":
 		if len(args) != 2 {
 			return fmt.Errorf("usage: get-wallet <username>")
@@ -105,6 +107,8 @@ func run(args []string) error {
 			return fmt.Errorf("usage: print")
 		}
 		return printChain(defaultDBFile, defaultWalletFile)
+	case "reset-chain":
+		return resetChain(args, defaultDBFile, defaultWalletFile)
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -114,14 +118,14 @@ func PrintchainInfo(chainInfo *service.ChainInfo) error {
 	blocks := chainInfo.Blocks
 	blockHeight := chainInfo.Height
 	fmt.Println()
-	fmt.Printf("+++++++++ 区块链打印开始，当前区块高度 %d ++++++++++\n", blockHeight)
+	fmt.Printf("+++++++++ START PRINTING BLOCKCHAIN, CURRENT BLOCK HEIGHT IS %d ++++++++++\n", blockHeight)
 	for i, block := range blocks {
-		fmt.Printf("========= 区块 %d =========\n", len(blocks)-i-1)
-		fmt.Printf("当前区块哈希: %x\n", block.Hash)
-		fmt.Printf("上一个区块哈希: %x\n", block.PrevHash)
-		fmt.Println("++++++++++ 链结束符 ++++++++++")
+		fmt.Printf("========= BLOCKCHAIN %d =========\n", len(blocks)-i-1)
+		fmt.Printf("CURRENT BLOCKCHAIN HASH: %x\n", block.Hash)
+		fmt.Printf("PREVIOUS BLOCKCHAIN HASH: %x\n", block.PrevHash)
 		fmt.Println()
 	}
+	fmt.Println("++++++++++++++++++ BLOCKCHAIN PRINTING ENDING SYMBOL  ++++++++++++++++++++")
 	return nil
 }
 
@@ -143,14 +147,28 @@ func initApp(minerAddress, dbFile string, dbWalletFile string) error {
 	return nil
 }
 
-func openWalletService(dbFile string) (*service.WalletService, func() error, error) {
-	bc, err := core.OpenBlockChain(dbFile)
+func openWalletService(walletDBFile string) (*service.WalletService, func() error, error) {
+	db, err := database.OpenDB(walletDBFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open blockchain: %w", err)
+		return nil, nil, fmt.Errorf("open wallet db: %w", err)
 	}
 
-	ws := service.NewWalletService(wallet.NewWalletStorage(bc.DB), bc)
-	return ws, bc.DB.Close, nil
+	if err := db.CreateBucket("Wallet"); err != nil {
+		db.Close()
+		return nil, nil, fmt.Errorf("create wallet bucket: %w", err)
+	}
+
+	ws := service.NewWalletService(wallet.NewWalletStorage(db), nil)
+	return ws, db.Close, nil
+}
+
+func openAppWalletService(chainDBFile string, walletDBFile string) (*service.WalletService, func() error, error) {
+	app, err := service.OpenServices(chainDBFile, walletDBFile)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return app.WalletService, app.Close, nil
 }
 
 func createWallet(username, role, dbFile string) error {
@@ -170,7 +188,7 @@ func createWallet(username, role, dbFile string) error {
 		return fmt.Errorf("create wallet: read back wallet: %w", err)
 	}
 
-	fmt.Printf("wallet created: user=%s address=%s\n", info.Username, info.Address)
+	fmt.Printf("wallet created: user=%s address=%s, role=%s\n", info.Username, info.Address, info.Role)
 	return nil
 }
 
@@ -210,13 +228,13 @@ func listWallets(dbFile string) error {
 	}
 
 	for _, item := range wallets {
-		fmt.Printf("user=%s address=%s\n", item.Username, item.Address)
+		fmt.Printf("user=%s address=%s role=%s\n", item.Username, item.Address, item.Role)
 	}
 	return nil
 }
 
 func getBalance(username, dbFile string) error {
-	ws, closeFn, err := openWalletService(dbFile)
+	ws, closeFn, err := openAppWalletService(defaultDBFile, dbFile)
 	if err != nil {
 		return err
 	}
@@ -232,7 +250,7 @@ func getBalance(username, dbFile string) error {
 }
 
 func transfer(fromUser, toAddress string, amount int, dbFile string) error {
-	ws, closeFn, err := openWalletService(dbFile)
+	ws, closeFn, err := openAppWalletService(defaultDBFile, dbFile)
 	if err != nil {
 		return err
 	}
@@ -261,6 +279,42 @@ func printChain(chaindbFile string, walletdbFile string) error {
 	return PrintchainInfo(chainInfo)
 }
 
+func resetChain(args []string, chainDBFile string, walletDBFile string) error {
+	if len(args) > 2 {
+		return fmt.Errorf("usage: reset-chain [--with-wallets]")
+	}
+
+	withWallets := false
+	if len(args) == 2 {
+		if args[1] != "--with-wallets" {
+			return fmt.Errorf("usage: reset-chain [--with-wallets]")
+		}
+		withWallets = true
+	}
+
+	if err := removeDBFile(chainDBFile); err != nil {
+		return fmt.Errorf("reset chain: %w", err)
+	}
+	fmt.Printf("removed chain database: %s\n", chainDBFile)
+
+	if withWallets {
+		if err := removeDBFile(walletDBFile); err != nil {
+			return fmt.Errorf("reset wallets: %w", err)
+		}
+		fmt.Printf("removed wallet database: %s\n", walletDBFile)
+	}
+
+	return nil
+}
+
+func removeDBFile(path string) error {
+	err := os.Remove(path)
+	if err == nil || os.IsNotExist(err) {
+		return nil
+	}
+	return fmt.Errorf("remove %s: %w", path, err)
+}
+
 func printUsage() {
 	fmt.Println("myMiniBitcoin CLI")
 	fmt.Println()
@@ -268,11 +322,12 @@ func printUsage() {
 	fmt.Println("  go run ./cmd <command> [args]")
 	fmt.Println()
 	fmt.Println("commands:")
-	fmt.Println("  init [minerAddress]                   initialize chain and genesis block")
-	fmt.Println("  create-wallet <username> [role]       create and persist a wallet, role can be 'user' or 'miner', default is 'user'")
-	fmt.Println("  get-wallet <username>                 show wallet detail")
-	fmt.Println("  list-wallets                          list all wallets")
-	fmt.Println("  balance <username>                    query wallet balance")
-	fmt.Println("  transfer <fromUser> <toAddress> <n>   transfer coin and mine one block")
-	fmt.Println("  print                                 print blockchain")
+	fmt.Println("  init [minerAddress]                        initialize chain and genesis block")
+	fmt.Println("  create-wallet <username> [role]            create and persist a wallet, role can be 'user' or 'miner', default is 'user'")
+	fmt.Println("  get-wallet <username>                      show wallet detail")
+	fmt.Println("  list-wallets                               list all wallets")
+	fmt.Println("  balance <username>                    	  query wallet balance")
+	fmt.Println("  transfer <fromUser> <toAddress> <amount>   transfer coin and mine one block")
+	fmt.Println("  print                                      print blockchain")
+	fmt.Println("  reset-chain [--with-wallets]               remove local chain database, optionally remove wallets")
 }
