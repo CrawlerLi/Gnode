@@ -146,11 +146,11 @@ func OpenBlockChain(path string) (bc *BlockChain, err error) {
 	err = db.View(func(tx database.Tx) error {
 		metaBucket := tx.Bucket("metaData")
 		if metaBucket == nil {
-			return fmt.Errorf("OpenBlockChain: failed to find metaData bucket")
+			return fmt.Errorf("OpenBlockChain: failed to find metaData bucket: %w", ErrChainNotInitialized)
 		}
 		bestStateBytes := metaBucket.Get([]byte("bestState"))
 		if bestStateBytes == nil {
-			return fmt.Errorf("OpenBlockChain: failed to find bestState in database")
+			return fmt.Errorf("OpenBlockChain: failed to find bestState in database: %w", ErrChainNotInitialized)
 		}
 		bestState, err := decodeBestState(bestStateBytes)
 		if err != nil {
@@ -159,6 +159,11 @@ func OpenBlockChain(path string) (bc *BlockChain, err error) {
 		bestStateSnapshot = bestState
 		return nil
 	})
+
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
 
 	BC := &BlockChain{DB: db, UTXO: &UTXOSet{db: db}, BestState: bestStateSnapshot}
 	return BC, nil
@@ -236,5 +241,3 @@ func (bc *BlockChain) VerifyTransaction(tx *Transaction) error {
 func NewGenesisBlock(coinbase *Transaction) *Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
-
-

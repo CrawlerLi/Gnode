@@ -84,6 +84,19 @@ func InitApp(minerAddress string, chainDBFile string, walletDBFile string) (*App
 	return appService, nil
 }
 
+func IsChainInitialized(chainDBFile string) (bool, error) {
+	bc, err := core.OpenBlockChain(chainDBFile)
+	if err != nil {
+		if errors.Is(err, core.ErrChainNotInitialized) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check chain initialized: %w", err)
+	}
+	defer bc.DB.Close()
+
+	return true, nil
+}
+
 func OpenServices(chainDBFile string, walletDBFile string) (*AppService, error) {
 	bc, err := core.OpenBlockChain(chainDBFile)
 	if err != nil {

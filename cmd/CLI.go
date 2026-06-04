@@ -129,8 +129,15 @@ func PrintchainInfo(chainInfo *service.ChainInfo) error {
 	return nil
 }
 
-func initApp(minerAddress, dbFile string, dbWalletFile string) error {
-	server, err := service.InitApp(minerAddress, dbFile, dbWalletFile)
+func initApp(minerAddress, chainDBFile string, dbWalletFile string) error {
+	initialized, err := service.IsChainInitialized(chainDBFile)
+	if err != nil {
+		return fmt.Errorf("init app: check chain initialized: %w", err)
+	}
+	if initialized {
+		return fmt.Errorf("init app: chain already initialized")
+	}
+	server, err := service.InitApp(minerAddress, chainDBFile, dbWalletFile)
 	if err != nil {
 		return fmt.Errorf("init chain: open services: %w", err)
 	}
@@ -141,7 +148,10 @@ func initApp(minerAddress, dbFile string, dbWalletFile string) error {
 	if server != nil {
 		fmt.Println("node and chain initialized")
 		PrintchainInfo(chainInfo)
+	}
 
+	if err != nil {
+		return fmt.Errorf("init chain: require blockchain status after initialization: %w", err)
 	}
 
 	return nil

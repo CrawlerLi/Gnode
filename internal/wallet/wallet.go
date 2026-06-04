@@ -58,6 +58,7 @@ func (w *Wallet) SerializeWallet() ([]byte, error) {
 		return nil, fmt.Errorf("encode wallet: empty wallet private key")
 	}
 
+	//there may be some probelms
 	sw := serializedWallet{
 		PrivateD:  w.PrivateKey.D.Bytes(),
 		PublicX:   w.PrivateKey.PublicKey.X.Bytes(),
