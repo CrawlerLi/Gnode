@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package p2p;
+
+option go_package = "github.com/CrawlerLi/myMiniBitcoin/internal/p2p/proto;p2ppb";
+
+service PeerService {
+    rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+    string node_id = 1;
+}
+
+message PingResponse {
+    string node_id = 1;
+    string message = 2;
+}
