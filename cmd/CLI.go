@@ -8,13 +8,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/CrawlerLi/myMiniBitcoin/internal/config"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
+	"github.com/CrawlerLi/myMiniBitcoin/internal/node"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/service"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/wallet"
 )
 
-const defaultDBFile = "cmd/mini_bitcoin.db"
-const defaultWalletFile = "cmd/mini_bitcoin_wallet.db"
+const defaultDBFile = "cmd/blockchain.db"
+const defaultWalletFile = "cmd/wallet.db"
 
 func main() {
 	args := os.Args[1:]
@@ -109,6 +111,12 @@ func run(args []string) error {
 		return printChain(defaultDBFile, defaultWalletFile)
 	case "reset-chain":
 		return resetChain(args, defaultDBFile, defaultWalletFile)
+	case "node":
+		configFilepath, err := NodeParsing(args)
+		if err != nil {
+			return fmt.Errorf("%w: usage: node <config file path>", err)
+		}
+		return runNode(configFilepath)
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -325,6 +333,33 @@ func removeDBFile(path string) error {
 	return fmt.Errorf("remove %s: %w", path, err)
 }
 
+func runNode(configFilePath string) error {
+	nodeConfig, err := config.Load(configFilePath)
+	if err != nil {
+		return fmt.Errorf("run Node: load config file: %w", err)
+	}
+
+	appService, err := service.OpenServices(nodeConfig.ChainDB, nodeConfig.WalletDB)
+	if err != nil {
+		return fmt.Errorf("run node: %w", err)
+	}
+	defer appService.Close()
+
+	n, err := node.InitNode(appService, nodeConfig.NodeID, nodeConfig.ListenAddr)
+	if err != nil {
+		return fmt.Errorf("run node: %w", err)
+	}
+
+	defer n.Stop()
+
+	n.Start()
+
+	if err = <-n.Errch(); err != nil {
+		return fmt.Errorf("run Node: %w", err)
+	}
+	return nil
+}
+
 func printUsage() {
 	fmt.Println("myMiniBitcoin CLI")
 	fmt.Println()
@@ -340,4 +375,5 @@ func printUsage() {
 	fmt.Println("  transfer <fromUser> <toAddress> <amount>   transfer coin and mine one block")
 	fmt.Println("  print                                      print blockchain")
 	fmt.Println("  reset-chain [--with-wallets]               remove local chain database, optionally remove wallets")
+	fmt.Println("  node <config file path>                    run node and network")
 }

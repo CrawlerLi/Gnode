@@ -35,3 +35,19 @@ func InitParsing(args []string) (minerAddress string, err error) {
 
 	return minerAddress, nil
 }
+
+func NodeParsing(args []string) (configFilePath string, err error) {
+	if len(args) < 1 || len(args) > 2 {
+		return "", fmt.Errorf("too many or too less arguments")
+	}
+
+	if len(args) == 1 {
+		configFilePath = "./configs/default_node.json"
+	}
+
+	if len(args) == 2 {
+		configFilePath = args[1]
+	}
+
+	return configFilePath, nil
+}
