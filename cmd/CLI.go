@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/config"
 	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
@@ -17,6 +19,7 @@ import (
 
 const defaultDBFile = "cmd/blockchain.db"
 const defaultWalletFile = "cmd/wallet.db"
+const defaultConfigFile = "./configs/default_node.json"
 
 func main() {
 	args := os.Args[1:]
@@ -69,11 +72,11 @@ func run(args []string) error {
 		printUsage()
 		return nil
 	case "init":
-		minerAdress, err := InitParsing(args)
+		minerAdress, configFilePath, err := InitParsing(args)
 		if err != nil {
 			return fmt.Errorf("%w :usage: init <minerAddress>", err)
 		}
-		return initApp(minerAdress, defaultDBFile, defaultWalletFile)
+		return initApp(minerAdress, configFilePath)
 	case "create-wallet":
 		username, role, err := CreatWalletParsing(args)
 		if err != nil {
@@ -137,7 +140,16 @@ func PrintchainInfo(chainInfo *service.ChainInfo) error {
 	return nil
 }
 
-func initApp(minerAddress, chainDBFile string, dbWalletFile string) error {
+func initApp(minerAddress, configFilePath string) error {
+	nodeConfig, err := config.Load(configFilePath)
+	if err != nil {
+		return fmt.Errorf("init app: load init config file: %w", err)
+	}
+	chainDBFile := nodeConfig.ChainDB
+	dbWalletFile := nodeConfig.WalletDB
+	if err != nil {
+		return fmt.Errorf("init app: %w", err)
+	}
 	initialized, err := service.IsChainInitialized(chainDBFile)
 	if err != nil {
 		return fmt.Errorf("init app: check chain initialized: %w", err)
@@ -345,7 +357,7 @@ func runNode(configFilePath string) error {
 	}
 	defer appService.Close()
 
-	n, err := node.InitNode(appService, nodeConfig.NodeID, nodeConfig.ListenAddr)
+	n, err := node.InitNode(appService, nodeConfig.NodeID, nodeConfig.ListenAddr, nodeConfig.Peers)
 	if err != nil {
 		return fmt.Errorf("run node: %w", err)
 	}
@@ -353,9 +365,29 @@ func runNode(configFilePath string) error {
 	defer n.Stop()
 
 	n.Start()
+	fmt.Printf("node %s listening on %s\n", n.ID, n.Addr)
+	for peerAddr := range n.Peers {
+		fmt.Printf("connected peer: %s\n", peerAddr)
+		//for ping test
+		resp, err := n.PingPeer(peerAddr)
+		if err != nil {
+			return fmt.Errorf("failed to ping peer %s: %w", peerAddr, err)
+		}
+		fmt.Printf("Received ping response [%s] from %s", resp, peerAddr)
+	}
 
-	if err = <-n.Errch(); err != nil {
-		return fmt.Errorf("run Node: %w", err)
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(interrupt)
+
+	select {
+	case <-interrupt:
+		fmt.Println("node shutting down")
+		return nil
+	case err := <-n.Errch():
+		if err != nil {
+			return fmt.Errorf("run node: node stopped unexpectedly: %w", err)
+		}
 	}
 	return nil
 }
@@ -367,7 +399,7 @@ func printUsage() {
 	fmt.Println("  go run ./cmd <command> [args]")
 	fmt.Println()
 	fmt.Println("commands:")
-	fmt.Println("  init [minerAddress]                        initialize chain and genesis block")
+	fmt.Println("  init  [configFilePath]  [minerAddress]      initialize chain and genesis block")
 	fmt.Println("  create-wallet <username> [role]            create and persist a wallet, role can be 'user' or 'miner', default is 'user'")
 	fmt.Println("  get-wallet <username>                      show wallet detail")
 	fmt.Println("  list-wallets                               list all wallets")

@@ -29,7 +29,7 @@ func TestPing(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	response, err := client.Ping(ctx, "TestNode")
+	response, err := client.Ping(ctx)
 	if err != nil {
 		t.Fatalf("Client failed to ping server: %v", err)
 	}

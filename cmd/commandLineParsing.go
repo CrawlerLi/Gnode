@@ -20,20 +20,23 @@ func CreatWalletParsing(args []string) (username string, role string, err error)
 
 }
 
-func InitParsing(args []string) (minerAddress string, err error) {
-	if len(args) < 1 || len(args) > 2 {
-		return "", fmt.Errorf("too many or too less arguments")
+func InitParsing(args []string) (minerAddress string, configFilePath string, err error) {
+	if len(args) < 1 || len(args) > 3 {
+		return "", "", fmt.Errorf("too many or too less arguments")
 	}
 
-	if len(args) == 1 {
-		minerAddress = ""
+	configFilePath = defaultConfigFile
+	minerAddress = ""
+
+	if len(args) >= 2 {
+		configFilePath = args[1]
 	}
 
-	if len(args) == 2 {
-		minerAddress = args[1]
+	if len(args) == 3 {
+		minerAddress = args[2]
 	}
 
-	return minerAddress, nil
+	return minerAddress, configFilePath, nil
 }
 
 func NodeParsing(args []string) (configFilePath string, err error) {

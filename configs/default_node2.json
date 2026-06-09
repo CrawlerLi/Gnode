@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "node_id": "node2",
+  "listen_addr": "127.0.0.1:5002",
+  "chain_db": "cmd/blockchain2.db",
+  "wallet_db": "cmd/wallet2.db",
+  "peers": ["127.0.0.1:5001"]
+}

@@ -23,7 +23,7 @@ func (s *Server) Ping(_ context.Context, in *pb.PingRequest) (*pb.PingResponse, 
 	log.Printf("Received ping from node %s", in.GetNodeId())
 
 	return &pb.PingResponse{
-		NodeId:  "Server",
+		NodeId:  s.NodeID,
 		Message: "Pong",
 	}, nil
 
@@ -40,13 +40,16 @@ func NewServer(addr string, nodeId string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen on addr %s: %w", addr, err)
 	}
-	grpcServer := NewGRPCServer()
-	return &Server{
-		GrpcServer: grpcServer,
+
+	s := &Server{
+		GrpcServer: grpc.NewServer(),
 		listener:   listener,
 		NodeID:     nodeId,
 		Addr:       listener.Addr().String(),
-	}, nil
+	}
+
+	pb.RegisterPeerServiceServer(s.GrpcServer, s)
+	return s, nil
 }
 
 func (s *Server) Start() error {
