@@ -25,10 +25,26 @@ type PingResponse struct {
 	Messgae     string
 }
 
+type PeerChainState struct {
+	PeerAddr     string
+	RemoteNodeID string
+	Height       int
+	LastHash     []byte
+}
+
 func InitNode(appService *service.AppService, localNodeID string, localNodeAddr string, peersAddr []string) (*Node, error) {
 	server, err := p2p.NewServer(localNodeAddr, localNodeID)
 	if err != nil {
 		return nil, fmt.Errorf("init node: %w", err)
+	}
+
+	server.ChainStateProvider = func() (int, []byte, error) {
+		state, err := appService.ChainService.RequireChainState()
+		if err != nil {
+			return 0, nil, err
+		}
+
+		return state.Height, state.LastHash, nil
 	}
 
 	n := &Node{
@@ -75,7 +91,11 @@ func (n *Node) ConnectPeer(peerAddr string) error {
 func (n *Node) PingPeer(peerAddr string) (*PingResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	peer := n.Peers[peerAddr]
+	peer, ok := n.Peers[peerAddr]
+	if !ok || peer == nil {
+		return nil, fmt.Errorf("peer %s not connected", peerAddr)
+	}
+
 	resp, err := peer.Ping(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("ping peer %s: %w", peerAddr, err)
@@ -84,6 +104,26 @@ func (n *Node) PingPeer(peerAddr string) (*PingResponse, error) {
 		PeerAddr:    peerAddr,
 		RemotNodeID: resp.NodeId,
 		Messgae:     resp.Message,
+	}, nil
+}
+
+func (n *Node) GetPeerChainState(peerAddr string) (*PeerChainState, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	peer, ok := n.Peers[peerAddr]
+	if !ok || peer == nil {
+		return nil, fmt.Errorf("peer %s not connected", peerAddr)
+	}
+
+	resp, err := peer.GetChainState(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get peer chain state: %w", err)
+	}
+	return &PeerChainState{
+		PeerAddr:     peerAddr,
+		RemoteNodeID: resp.NodeId,
+		Height:       int(resp.Height),
+		LastHash:     resp.BestHash,
 	}, nil
 }
 

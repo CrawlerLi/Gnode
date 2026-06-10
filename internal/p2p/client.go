@@ -35,6 +35,17 @@ func (c *Client) Close() error {
 
 func (c *Client) Ping(ctx context.Context) (*pb.PingResponse, error) {
 	resp, err := c.Gclient.Ping(ctx, &pb.PingRequest{NodeId: c.LocalNodeID})
+	if err != nil {
+		return nil, fmt.Errorf("ping: %w", err)
+	}
 	log.Printf("Get %s response from node %s", resp.Message, resp.NodeId)
-	return resp, err
+	return resp, nil
+}
+
+func (c *Client) GetChainState(ctx context.Context) (*pb.ChainStateResponse, error) {
+	resp, err := c.Gclient.GetChainState(ctx, &pb.ChainStateRequest{NodeId: c.LocalNodeID})
+	if err != nil {
+		return nil, fmt.Errorf("get chain state: %w", err)
+	}
+	return resp, nil
 }

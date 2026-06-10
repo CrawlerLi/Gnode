@@ -16,6 +16,8 @@ type Server struct {
 	NodeID     string
 	Addr       string
 
+	ChainStateProvider func() (int, []byte, error)
+
 	pb.UnimplementedPeerServiceServer
 }
 
@@ -27,6 +29,21 @@ func (s *Server) Ping(_ context.Context, in *pb.PingRequest) (*pb.PingResponse, 
 		Message: "Pong",
 	}, nil
 
+}
+
+func (s *Server) GetChainState(_ context.Context, in *pb.ChainStateRequest) (*pb.ChainStateResponse, error) {
+	log.Printf("Received get chianstate request from node %s", in.GetNodeId())
+
+	height, bestHash, err := s.ChainStateProvider()
+	if err != nil {
+		return nil, fmt.Errorf("Get chain state: call provider: %w", err)
+	}
+
+	return &pb.ChainStateResponse{
+		NodeId:   s.NodeID,
+		Height:   int32(height),
+		BestHash: bestHash,
+	}, nil
 }
 
 func NewGRPCServer() *grpc.Server {

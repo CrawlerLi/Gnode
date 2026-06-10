@@ -19,16 +19,21 @@ type ChainInfo struct {
 	Blocks   []*core.Block
 }
 
-func (bls *BlockchainService) RequireChainInfo() (*ChainInfo, error) {
+type ChainState struct {
+	Height   int
+	LastHash []byte
+}
+
+func (bcs *BlockchainService) RequireChainInfo() (*ChainInfo, error) {
 	var blocks []*core.Block
 
-	err := bls.chain.DB.View(func(tx database.Tx) error {
+	err := bcs.chain.DB.View(func(tx database.Tx) error {
 		blockBucket := tx.Bucket("blocks")
 		if blockBucket == nil {
 			return fmt.Errorf("find blocks bucket")
 		}
 
-		LastBlockHash := bls.chain.BestState.Hash
+		LastBlockHash := bcs.chain.BestState.Hash
 		if LastBlockHash == nil {
 			return fmt.Errorf("blocks print: check LastBlockHash")
 		}
@@ -60,8 +65,20 @@ func (bls *BlockchainService) RequireChainInfo() (*ChainInfo, error) {
 	}
 
 	return &ChainInfo{
-		Height:   bls.chain.BestState.BlockHeight,
-		LastHash: bls.chain.BestState.Hash,
+		Height:   bcs.chain.BestState.BlockHeight,
+		LastHash: bcs.chain.BestState.Hash,
 		Blocks:   blocks,
+	}, nil
+}
+
+func (bcs *BlockchainService) RequireChainState() (*ChainState, error) {
+	state := bcs.chain.BestSnapshot()
+	if state == nil {
+		return nil, fmt.Errorf("require chain state: best state is nil")
+	}
+
+	return &ChainState{
+		Height:   state.BlockHeight,
+		LastHash: state.Hash,
 	}, nil
 }

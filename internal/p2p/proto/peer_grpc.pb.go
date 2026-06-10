@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v3.21.12
-// source: proto/peer.proto
+// source: internal/p2p/proto/peer.proto
 
 package p2ppb
 
@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PeerService_Ping_FullMethodName = "/p2p.PeerService/Ping"
+	PeerService_Ping_FullMethodName          = "/p2p.PeerService/Ping"
+	PeerService_GetChainState_FullMethodName = "/p2p.PeerService/GetChainState"
 )
 
 // PeerServiceClient is the client API for PeerService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type PeerServiceClient interface {
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
+	GetChainState(ctx context.Context, in *ChainStateRequest, opts ...grpc.CallOption) (*ChainStateResponse, error)
 }
 
 type peerServiceClient struct {
@@ -47,11 +49,22 @@ func (c *peerServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...g
 	return out, nil
 }
 
+func (c *peerServiceClient) GetChainState(ctx context.Context, in *ChainStateRequest, opts ...grpc.CallOption) (*ChainStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChainStateResponse)
+	err := c.cc.Invoke(ctx, PeerService_GetChainState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PeerServiceServer is the server API for PeerService service.
 // All implementations must embed UnimplementedPeerServiceServer
 // for forward compatibility.
 type PeerServiceServer interface {
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
+	GetChainState(context.Context, *ChainStateRequest) (*ChainStateResponse, error)
 	mustEmbedUnimplementedPeerServiceServer()
 }
 
@@ -64,6 +77,9 @@ type UnimplementedPeerServiceServer struct{}
 
 func (UnimplementedPeerServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Ping not implemented")
+}
+func (UnimplementedPeerServiceServer) GetChainState(context.Context, *ChainStateRequest) (*ChainStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChainState not implemented")
 }
 func (UnimplementedPeerServiceServer) mustEmbedUnimplementedPeerServiceServer() {}
 func (UnimplementedPeerServiceServer) testEmbeddedByValue()                     {}
@@ -104,6 +120,24 @@ func _PeerService_Ping_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PeerService_GetChainState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChainStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PeerServiceServer).GetChainState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PeerService_GetChainState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PeerServiceServer).GetChainState(ctx, req.(*ChainStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PeerService_ServiceDesc is the grpc.ServiceDesc for PeerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -115,7 +149,11 @@ var PeerService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Ping",
 			Handler:    _PeerService_Ping_Handler,
 		},
+		{
+			MethodName: "GetChainState",
+			Handler:    _PeerService_GetChainState_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/peer.proto",
+	Metadata: "internal/p2p/proto/peer.proto",
 }

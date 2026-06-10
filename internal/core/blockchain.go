@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"sync"
 
 	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
 )
@@ -64,6 +65,8 @@ type BlockChain struct {
 	DB        database.DB
 	UTXO      *UTXOSet
 	BestState *BestState
+
+	mu sync.RWMutex
 }
 
 func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) {
@@ -169,7 +172,24 @@ func OpenBlockChain(path string) (bc *BlockChain, err error) {
 	return BC, nil
 }
 
+func (bc *BlockChain) BestSnapshot() *BestState {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	if bc.BestState == nil {
+		return nil
+	}
+
+	return &BestState{
+		BlockHeight: bc.BestState.BlockHeight,
+		Hash:        append([]byte(nil), bc.BestState.Hash...),
+	}
+}
+
 func (bc *BlockChain) AddBlock(transactions []*Transaction) error {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
 	for _, tx := range transactions {
 
 		err := bc.VerifyTransaction(tx)

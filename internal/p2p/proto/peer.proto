@@ -6,6 +6,7 @@ option go_package = "github.com/CrawlerLi/myMiniBitcoin/internal/p2p/proto;p2ppb
 
 service PeerService {
     rpc Ping(PingRequest) returns (PingResponse);
+    rpc GetChainState(ChainStateRequest) returns(ChainStateResponse);
 }
 
 message PingRequest {
@@ -15,4 +16,14 @@ message PingRequest {
 message PingResponse {
     string node_id = 1;
     string message = 2;
+}
+
+message ChainStateRequest{
+    string node_id = 1;
+}
+
+message ChainStateResponse{
+    string node_id = 1;
+    int32 height = 2;
+    bytes best_hash = 3;
 }
