@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/p2p"
-	"github.com/CrawlerLi/myMiniBitcoin/internal/service"
+	"github.com/CrawlerLi/Gnode/internal/p2p"
+	"github.com/CrawlerLi/Gnode/internal/service"
 )
 
 type Node struct {

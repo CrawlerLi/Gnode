@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/config"
+	"github.com/CrawlerLi/Gnode/internal/config"
 )
 
 func CreatWalletParsing(args []string) (username string, role string, err error) {

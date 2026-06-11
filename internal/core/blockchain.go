@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
+	"github.com/CrawlerLi/Gnode/internal/infra/database"
 )
 
 type BestState struct {

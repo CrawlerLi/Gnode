@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/config"
-	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
-	"github.com/CrawlerLi/myMiniBitcoin/internal/node"
-	"github.com/CrawlerLi/myMiniBitcoin/internal/service"
-	"github.com/CrawlerLi/myMiniBitcoin/internal/wallet"
+	"github.com/CrawlerLi/Gnode/internal/config"
+	"github.com/CrawlerLi/Gnode/internal/infra/database"
+	"github.com/CrawlerLi/Gnode/internal/node"
+	"github.com/CrawlerLi/Gnode/internal/service"
+	"github.com/CrawlerLi/Gnode/internal/wallet"
 )
 
 func main() {

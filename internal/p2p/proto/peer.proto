@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package p2p;
 
-option go_package = "github.com/CrawlerLi/myMiniBitcoin/internal/p2p/proto;p2ppb";
+option go_package = "github.com/CrawlerLi/Gnode/internal/p2p/proto;p2ppb";
 
 service PeerService {
     rpc Ping(PingRequest) returns (PingResponse);

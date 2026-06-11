@@ -239,7 +239,7 @@ const file_internal_p2p_proto_peer_proto_rawDesc = "" +
 	"\tbest_hash\x18\x03 \x01(\fR\bbestHash2|\n" +
 	"\vPeerService\x12+\n" +
 	"\x04Ping\x12\x10.p2p.PingRequest\x1a\x11.p2p.PingResponse\x12@\n" +
-	"\rGetChainState\x12\x16.p2p.ChainStateRequest\x1a\x17.p2p.ChainStateResponseB=Z;github.com/CrawlerLi/myMiniBitcoin/internal/p2p/proto;p2ppbb\x06proto3"
+	"\rGetChainState\x12\x16.p2p.ChainStateRequest\x1a\x17.p2p.ChainStateResponseB=Z;github.com/CrawlerLi/Gnode/internal/p2p/proto;p2ppbb\x06proto3"
 
 var (
 	file_internal_p2p_proto_peer_proto_rawDescOnce sync.Once

@@ -3,7 +3,7 @@ package wallet
 import (
 	"fmt"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
+	"github.com/CrawlerLi/Gnode/internal/infra/database"
 )
 
 type WalletStorage struct {

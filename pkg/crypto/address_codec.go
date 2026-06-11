@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	"github.com/CrawlerLi/myMiniBitcoin/pkg/utils"
+	"github.com/CrawlerLi/Gnode/pkg/utils"
 	"golang.org/x/crypto/ripemd160"
 )
 

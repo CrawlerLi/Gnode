@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/infra/database"
+	"github.com/CrawlerLi/Gnode/internal/infra/database"
 )
 
 type UTXOSet struct {

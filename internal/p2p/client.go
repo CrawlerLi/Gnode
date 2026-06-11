@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	pb "github.com/CrawlerLi/myMiniBitcoin/internal/p2p/proto"
+	pb "github.com/CrawlerLi/Gnode/internal/p2p/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

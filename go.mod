@@ -1,4 +1,4 @@
-module github.com/CrawlerLi/myMiniBitcoin
+module github.com/CrawlerLi/Gnode
 
 go 1.25.0
 

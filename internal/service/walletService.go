@@ -3,9 +3,9 @@ package service
 import (
 	"fmt"
 
-	"github.com/CrawlerLi/myMiniBitcoin/internal/core"
-	"github.com/CrawlerLi/myMiniBitcoin/internal/wallet"
-	"github.com/CrawlerLi/myMiniBitcoin/pkg/crypto"
+	"github.com/CrawlerLi/Gnode/internal/core"
+	"github.com/CrawlerLi/Gnode/internal/wallet"
+	"github.com/CrawlerLi/Gnode/pkg/crypto"
 )
 
 type WalletService struct {
