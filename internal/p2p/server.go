@@ -17,8 +17,14 @@ type Server struct {
 	Addr       string
 
 	ChainStateProvider func() (int, []byte, error)
+	ChainBlockProvider func(startHeight int, limits int) ([]BlockPayload, error)
 
 	pb.UnimplementedPeerServiceServer
+}
+
+type BlockPayload struct {
+	Height int
+	Block  []byte
 }
 
 func (s *Server) Ping(_ context.Context, in *pb.PingRequest) (*pb.PingResponse, error) {
@@ -36,7 +42,7 @@ func (s *Server) GetChainState(_ context.Context, in *pb.ChainStateRequest) (*pb
 
 	height, bestHash, err := s.ChainStateProvider()
 	if err != nil {
-		return nil, fmt.Errorf("Get chain state: call provider: %w", err)
+		return nil, fmt.Errorf("Get chain state: call chain state provider: %w", err)
 	}
 
 	return &pb.ChainStateResponse{
@@ -44,6 +50,24 @@ func (s *Server) GetChainState(_ context.Context, in *pb.ChainStateRequest) (*pb
 		Height:   int32(height),
 		BestHash: bestHash,
 	}, nil
+}
+
+func (s *Server) GetBlocksFromHeight(_ context.Context, in *pb.GetBlocksFromHeightRequest) (resp *pb.GetBlocksFromHeightResponse, err error) {
+	log.Printf("Received get blocks request from node %s, peer block height is %d", in.GetNodeId(), in.GetStartHeight())
+	BlockPayloads, err := s.ChainBlockProvider(int(in.GetStartHeight()), int(in.GetLimit()))
+	if err != nil {
+		return nil, fmt.Errorf("Get chain state: call blocks from height provider: %w", err)
+	}
+
+	for _, block := range BlockPayloads {
+		resp.Blocks = append(resp.Blocks, &pb.BlockData{
+			Height: int32(block.Height),
+			Block:  block.Block,
+		})
+	}
+
+	return resp, nil
+
 }
 
 func NewGRPCServer() *grpc.Server {
