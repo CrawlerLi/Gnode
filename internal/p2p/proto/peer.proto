@@ -7,6 +7,7 @@ option go_package = "github.com/CrawlerLi/Gnode/internal/p2p/proto;p2ppb";
 service PeerService {
     rpc Ping(PingRequest) returns (PingResponse);
     rpc GetChainState(ChainStateRequest) returns(ChainStateResponse);
+    rpc GetBlocksFromHeight(GetBlocksFromHeightRequest) returns (GetBlocksFromHeightResponse);
 }
 
 message PingRequest {
@@ -26,4 +27,20 @@ message ChainStateResponse{
     string node_id = 1;
     int32 height = 2;
     bytes best_hash = 3;
+}
+
+message GetBlocksFromHeightRequest{
+    string node_id = 1;
+    int32 start_height = 2;
+    int32 limit = 3;
+}
+
+message GetBlocksFromHeightResponse{
+    string node_id = 1;
+    repeated BlockData blocks = 2;
+}
+
+message BlockData{
+    int32 height = 1;
+    bytes block = 2;
 }

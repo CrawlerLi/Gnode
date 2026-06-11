@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PeerService_Ping_FullMethodName          = "/p2p.PeerService/Ping"
-	PeerService_GetChainState_FullMethodName = "/p2p.PeerService/GetChainState"
+	PeerService_Ping_FullMethodName                = "/p2p.PeerService/Ping"
+	PeerService_GetChainState_FullMethodName       = "/p2p.PeerService/GetChainState"
+	PeerService_GetBlocksFromHeight_FullMethodName = "/p2p.PeerService/GetBlocksFromHeight"
 )
 
 // PeerServiceClient is the client API for PeerService service.
@@ -29,6 +30,7 @@ const (
 type PeerServiceClient interface {
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	GetChainState(ctx context.Context, in *ChainStateRequest, opts ...grpc.CallOption) (*ChainStateResponse, error)
+	GetBlocksFromHeight(ctx context.Context, in *GetBlocksFromHeightRequest, opts ...grpc.CallOption) (*GetBlocksFromHeightResponse, error)
 }
 
 type peerServiceClient struct {
@@ -59,12 +61,23 @@ func (c *peerServiceClient) GetChainState(ctx context.Context, in *ChainStateReq
 	return out, nil
 }
 
+func (c *peerServiceClient) GetBlocksFromHeight(ctx context.Context, in *GetBlocksFromHeightRequest, opts ...grpc.CallOption) (*GetBlocksFromHeightResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBlocksFromHeightResponse)
+	err := c.cc.Invoke(ctx, PeerService_GetBlocksFromHeight_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PeerServiceServer is the server API for PeerService service.
 // All implementations must embed UnimplementedPeerServiceServer
 // for forward compatibility.
 type PeerServiceServer interface {
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	GetChainState(context.Context, *ChainStateRequest) (*ChainStateResponse, error)
+	GetBlocksFromHeight(context.Context, *GetBlocksFromHeightRequest) (*GetBlocksFromHeightResponse, error)
 	mustEmbedUnimplementedPeerServiceServer()
 }
 
@@ -80,6 +93,9 @@ func (UnimplementedPeerServiceServer) Ping(context.Context, *PingRequest) (*Ping
 }
 func (UnimplementedPeerServiceServer) GetChainState(context.Context, *ChainStateRequest) (*ChainStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetChainState not implemented")
+}
+func (UnimplementedPeerServiceServer) GetBlocksFromHeight(context.Context, *GetBlocksFromHeightRequest) (*GetBlocksFromHeightResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBlocksFromHeight not implemented")
 }
 func (UnimplementedPeerServiceServer) mustEmbedUnimplementedPeerServiceServer() {}
 func (UnimplementedPeerServiceServer) testEmbeddedByValue()                     {}
@@ -138,6 +154,24 @@ func _PeerService_GetChainState_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PeerService_GetBlocksFromHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBlocksFromHeightRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PeerServiceServer).GetBlocksFromHeight(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PeerService_GetBlocksFromHeight_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PeerServiceServer).GetBlocksFromHeight(ctx, req.(*GetBlocksFromHeightRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PeerService_ServiceDesc is the grpc.ServiceDesc for PeerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +186,10 @@ var PeerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetChainState",
 			Handler:    _PeerService_GetChainState_Handler,
+		},
+		{
+			MethodName: "GetBlocksFromHeight",
+			Handler:    _PeerService_GetBlocksFromHeight_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

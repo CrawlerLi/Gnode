@@ -221,6 +221,170 @@ func (x *ChainStateResponse) GetBestHash() []byte {
 	return nil
 }
 
+type GetBlocksFromHeightRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	StartHeight   int32                  `protobuf:"varint,2,opt,name=start_height,json=startHeight,proto3" json:"start_height,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBlocksFromHeightRequest) Reset() {
+	*x = GetBlocksFromHeightRequest{}
+	mi := &file_internal_p2p_proto_peer_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBlocksFromHeightRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBlocksFromHeightRequest) ProtoMessage() {}
+
+func (x *GetBlocksFromHeightRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peer_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBlocksFromHeightRequest.ProtoReflect.Descriptor instead.
+func (*GetBlocksFromHeightRequest) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peer_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetBlocksFromHeightRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *GetBlocksFromHeightRequest) GetStartHeight() int32 {
+	if x != nil {
+		return x.StartHeight
+	}
+	return 0
+}
+
+func (x *GetBlocksFromHeightRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type GetBlocksFromHeightResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Blocks        []*BlockData           `protobuf:"bytes,2,rep,name=blocks,proto3" json:"blocks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBlocksFromHeightResponse) Reset() {
+	*x = GetBlocksFromHeightResponse{}
+	mi := &file_internal_p2p_proto_peer_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBlocksFromHeightResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBlocksFromHeightResponse) ProtoMessage() {}
+
+func (x *GetBlocksFromHeightResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peer_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBlocksFromHeightResponse.ProtoReflect.Descriptor instead.
+func (*GetBlocksFromHeightResponse) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peer_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetBlocksFromHeightResponse) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *GetBlocksFromHeightResponse) GetBlocks() []*BlockData {
+	if x != nil {
+		return x.Blocks
+	}
+	return nil
+}
+
+type BlockData struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Height        int32                  `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
+	Block         []byte                 `protobuf:"bytes,2,opt,name=block,proto3" json:"block,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockData) Reset() {
+	*x = BlockData{}
+	mi := &file_internal_p2p_proto_peer_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockData) ProtoMessage() {}
+
+func (x *BlockData) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_p2p_proto_peer_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockData.ProtoReflect.Descriptor instead.
+func (*BlockData) Descriptor() ([]byte, []int) {
+	return file_internal_p2p_proto_peer_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *BlockData) GetHeight() int32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *BlockData) GetBlock() []byte {
+	if x != nil {
+		return x.Block
+	}
+	return nil
+}
+
 var File_internal_p2p_proto_peer_proto protoreflect.FileDescriptor
 
 const file_internal_p2p_proto_peer_proto_rawDesc = "" +
@@ -236,10 +400,21 @@ const file_internal_p2p_proto_peer_proto_rawDesc = "" +
 	"\x12ChainStateResponse\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x16\n" +
 	"\x06height\x18\x02 \x01(\x05R\x06height\x12\x1b\n" +
-	"\tbest_hash\x18\x03 \x01(\fR\bbestHash2|\n" +
+	"\tbest_hash\x18\x03 \x01(\fR\bbestHash\"n\n" +
+	"\x1aGetBlocksFromHeightRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12!\n" +
+	"\fstart_height\x18\x02 \x01(\x05R\vstartHeight\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"^\n" +
+	"\x1bGetBlocksFromHeightResponse\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12&\n" +
+	"\x06blocks\x18\x02 \x03(\v2\x0e.p2p.BlockDataR\x06blocks\"9\n" +
+	"\tBlockData\x12\x16\n" +
+	"\x06height\x18\x01 \x01(\x05R\x06height\x12\x14\n" +
+	"\x05block\x18\x02 \x01(\fR\x05block2\xd6\x01\n" +
 	"\vPeerService\x12+\n" +
 	"\x04Ping\x12\x10.p2p.PingRequest\x1a\x11.p2p.PingResponse\x12@\n" +
-	"\rGetChainState\x12\x16.p2p.ChainStateRequest\x1a\x17.p2p.ChainStateResponseB=Z;github.com/CrawlerLi/Gnode/internal/p2p/proto;p2ppbb\x06proto3"
+	"\rGetChainState\x12\x16.p2p.ChainStateRequest\x1a\x17.p2p.ChainStateResponse\x12X\n" +
+	"\x13GetBlocksFromHeight\x12\x1f.p2p.GetBlocksFromHeightRequest\x1a .p2p.GetBlocksFromHeightResponseB5Z3github.com/CrawlerLi/Gnode/internal/p2p/proto;p2ppbb\x06proto3"
 
 var (
 	file_internal_p2p_proto_peer_proto_rawDescOnce sync.Once
@@ -253,23 +428,29 @@ func file_internal_p2p_proto_peer_proto_rawDescGZIP() []byte {
 	return file_internal_p2p_proto_peer_proto_rawDescData
 }
 
-var file_internal_p2p_proto_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_internal_p2p_proto_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_internal_p2p_proto_peer_proto_goTypes = []any{
-	(*PingRequest)(nil),        // 0: p2p.PingRequest
-	(*PingResponse)(nil),       // 1: p2p.PingResponse
-	(*ChainStateRequest)(nil),  // 2: p2p.ChainStateRequest
-	(*ChainStateResponse)(nil), // 3: p2p.ChainStateResponse
+	(*PingRequest)(nil),                 // 0: p2p.PingRequest
+	(*PingResponse)(nil),                // 1: p2p.PingResponse
+	(*ChainStateRequest)(nil),           // 2: p2p.ChainStateRequest
+	(*ChainStateResponse)(nil),          // 3: p2p.ChainStateResponse
+	(*GetBlocksFromHeightRequest)(nil),  // 4: p2p.GetBlocksFromHeightRequest
+	(*GetBlocksFromHeightResponse)(nil), // 5: p2p.GetBlocksFromHeightResponse
+	(*BlockData)(nil),                   // 6: p2p.BlockData
 }
 var file_internal_p2p_proto_peer_proto_depIdxs = []int32{
-	0, // 0: p2p.PeerService.Ping:input_type -> p2p.PingRequest
-	2, // 1: p2p.PeerService.GetChainState:input_type -> p2p.ChainStateRequest
-	1, // 2: p2p.PeerService.Ping:output_type -> p2p.PingResponse
-	3, // 3: p2p.PeerService.GetChainState:output_type -> p2p.ChainStateResponse
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	6, // 0: p2p.GetBlocksFromHeightResponse.blocks:type_name -> p2p.BlockData
+	0, // 1: p2p.PeerService.Ping:input_type -> p2p.PingRequest
+	2, // 2: p2p.PeerService.GetChainState:input_type -> p2p.ChainStateRequest
+	4, // 3: p2p.PeerService.GetBlocksFromHeight:input_type -> p2p.GetBlocksFromHeightRequest
+	1, // 4: p2p.PeerService.Ping:output_type -> p2p.PingResponse
+	3, // 5: p2p.PeerService.GetChainState:output_type -> p2p.ChainStateResponse
+	5, // 6: p2p.PeerService.GetBlocksFromHeight:output_type -> p2p.GetBlocksFromHeightResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_internal_p2p_proto_peer_proto_init() }
@@ -283,7 +464,7 @@ func file_internal_p2p_proto_peer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_p2p_proto_peer_proto_rawDesc), len(file_internal_p2p_proto_peer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
