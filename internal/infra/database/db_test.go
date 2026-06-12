@@ -12,12 +12,12 @@ func TestInitDB(t *testing.T) {
 
 	db, err := InitDB(testDBFile)
 	if err != nil {
-		t.Fatalf("Failed to create database")
+		t.Fatalf("failed to create database")
 	}
 	defer db.Close()
 
 	if db == nil {
-		t.Fatalf("Database instance can not be empty")
+		t.Fatalf("database instance can not be empty")
 	}
 }
 
@@ -27,7 +27,7 @@ func TestCreatBucket(t *testing.T) {
 	db, _ := InitDB(testDBFile)
 	err := db.CreateBucket("testBucket")
 	if err != nil {
-		t.Fatalf("Failed to create Bucket")
+		t.Fatalf("failed to create Bucket")
 	}
 
 	defer db.Close()
@@ -43,12 +43,12 @@ func TestPutAndGet(t *testing.T) {
 	db.CreateBucket("testBucket")
 	err := db.Put("testBucket", []byte("testKey"), []byte("testValue"))
 	if err != nil {
-		t.Fatalf("Failed to put data")
+		t.Fatalf("failed to put data")
 	}
 
 	res, err := db.Get("testBucket", []byte("testKey"))
 	if err != nil {
-		t.Fatalf("Failed to get data")
+		t.Fatalf("failed to get data")
 	}
 
 	if string(res) != "testValue" {
@@ -67,7 +67,7 @@ func TestDelete(t *testing.T) {
 
 	err := db.Delete("testBucket", []byte("testKey"))
 	if err != nil {
-		t.Fatalf("Failed to delete data")
+		t.Fatalf("failed to delete data")
 	}
 
 	val, _ := db.Get("testBucket", []byte("testKey"))

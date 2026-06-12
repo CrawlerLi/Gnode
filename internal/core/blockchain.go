@@ -105,11 +105,11 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 
 	coinbase, err := NewCoinBase(pubkeyHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create NewGensisBlock : %w", err)
+		return nil, fmt.Errorf("failed to create NewGenesisBlock : %w", err)
 	}
 
-	Genesisblock := NewGenesisBlock(coinbase)
-	bestState := newBestState(1, Genesisblock.Hash)
+	genesisblock := NewGenesisBlock(coinbase)
+	bestState := newBestState(1, genesisblock.Hash)
 
 	err = newBC.DB.Update(func(tx database.Tx) error {
 		blockBucket := tx.Bucket("blocks")
@@ -122,12 +122,12 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 			return fmt.Errorf("failed to find HeightIdx bucket")
 		}
 
-		byteBlock, err := Genesisblock.SerializeBlock()
+		byteBlock, err := genesisblock.SerializeBlock()
 		if err != nil {
 			return fmt.Errorf("failed to serialize genesis block: %w", err)
 		}
 
-		err = blockBucket.Put(Genesisblock.Hash, byteBlock)
+		err = blockBucket.Put(genesisblock.Hash, byteBlock)
 		if err != nil {
 			return fmt.Errorf("failed to put genesis block into bucket: %w", err)
 		}
@@ -137,7 +137,7 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 			return fmt.Errorf("failed to update best state: %w", err)
 		}
 
-		err = newBC.UTXO.UpdateUTXO(Genesisblock, tx)
+		err = newBC.UTXO.UpdateUTXO(genesisblock, tx)
 		if err != nil {
 			return fmt.Errorf("failed to update UTXO set: %w", err)
 		}
@@ -146,7 +146,7 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 		if err != nil {
 			return fmt.Errorf("convert genesis height: %w", err)
 		}
-		if err := heightIdxBucket.Put(heightBytes, Genesisblock.Hash); err != nil {
+		if err := heightIdxBucket.Put(heightBytes, genesisblock.Hash); err != nil {
 			return fmt.Errorf("put genesis height index: %w", err)
 		}
 
@@ -165,7 +165,7 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 func OpenBlockChain(path string) (bc *BlockChain, err error) {
 	db, err := database.OpenDB(path)
 	if err != nil {
-		return nil, fmt.Errorf("OpenBlockChain: open database: %w", err)
+		return nil, fmt.Errorf("open blockchain: open database: %w", err)
 	}
 
 	var bestStateSnapshot *BestState
@@ -173,15 +173,15 @@ func OpenBlockChain(path string) (bc *BlockChain, err error) {
 	err = db.View(func(tx database.Tx) error {
 		metaBucket := tx.Bucket("metaData")
 		if metaBucket == nil {
-			return fmt.Errorf("OpenBlockChain: failed to find metaData bucket: %w", ErrChainNotInitialized)
+			return fmt.Errorf("open blockchain: failed to find metaData bucket: %w", ErrChainNotInitialized)
 		}
 		bestStateBytes := metaBucket.Get([]byte("bestState"))
 		if bestStateBytes == nil {
-			return fmt.Errorf("OpenBlockChain: failed to find bestState in database: %w", ErrChainNotInitialized)
+			return fmt.Errorf("open blockchain: failed to find bestState in database: %w", ErrChainNotInitialized)
 		}
 		bestState, err := decodeBestState(bestStateBytes)
 		if err != nil {
-			return fmt.Errorf("OpenBlockChain: decode best state: %w", err)
+			return fmt.Errorf("open blockchain: decode best state: %w", err)
 		}
 		bestStateSnapshot = bestState
 		return nil
@@ -192,8 +192,8 @@ func OpenBlockChain(path string) (bc *BlockChain, err error) {
 		return nil, err
 	}
 
-	BC := &BlockChain{DB: db, UTXO: &UTXOSet{db: db}, BestState: bestStateSnapshot}
-	return BC, nil
+	bc = &BlockChain{DB: db, UTXO: &UTXOSet{db: db}, BestState: bestStateSnapshot}
+	return bc, nil
 }
 
 func (bc *BlockChain) BestSnapshot() *BestState {
@@ -268,7 +268,7 @@ func (bc *BlockChain) GetBlocksFromHeight(startHeight int, limit int) ([]ChainBl
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("Get blocks from height: view in db: %w", err)
+		return nil, fmt.Errorf("get blocks from height: view in db: %w", err)
 	}
 	return chainBlocks, nil
 }
@@ -281,18 +281,18 @@ func (bc *BlockChain) AddBlock(transactions []*Transaction) error {
 
 		err := bc.VerifyTransaction(tx)
 		if err != nil {
-			return fmt.Errorf("Add block: invalid transaction: %w", err)
+			return fmt.Errorf("add block: invalid transaction: %w", err)
 		}
 	}
 
 	prevHash := bc.BestState.Hash
-	NewBlock := NewBlock(transactions, prevHash)
+	newBlock := NewBlock(transactions, prevHash)
 
 	//避免入库失败，保证数据一致性
 	//Avoid database insertion failures and ensure data consistency
 	candidate := &BestState{
 		BlockHeight: bc.BestState.BlockHeight + 1,
-		Hash:        NewBlock.Hash,
+		Hash:        newBlock.Hash,
 	}
 
 	err := bc.DB.Update(func(tx database.Tx) error {
@@ -301,32 +301,32 @@ func (bc *BlockChain) AddBlock(transactions []*Transaction) error {
 			return fmt.Errorf("failed to find blocks bucket")
 		}
 
-		HeightIdxBucket := tx.Bucket("HeightIdx")
-		if HeightIdxBucket == nil {
+		heightIdxBucket := tx.Bucket("HeightIdx")
+		if heightIdxBucket == nil {
 			return fmt.Errorf("failed to find HeightIdx bucket")
 		}
 
-		bytesBlock, err := NewBlock.SerializeBlock()
+		bytesBlock, err := newBlock.SerializeBlock()
 		if err != nil {
 			return fmt.Errorf("serialize new block: %w", err)
 		}
 
-		err = blockBucket.Put(NewBlock.Hash, bytesBlock)
+		err = blockBucket.Put(newBlock.Hash, bytesBlock)
 		if err != nil {
 			return fmt.Errorf("update new block: %w", err)
 		}
 
 		blockHeightBytes, err := utils.IntToBytes(candidate.BlockHeight)
 		if err != nil {
-			return fmt.Errorf("convert block hegith to bytes: %w", err)
+			return fmt.Errorf("convert block height to bytes: %w", err)
 		}
 
-		err = HeightIdxBucket.Put(blockHeightBytes, NewBlock.Hash)
+		err = heightIdxBucket.Put(blockHeightBytes, newBlock.Hash)
 		if err != nil {
 			return fmt.Errorf("update HeightIdx: %w", err)
 		}
 
-		err = bc.UTXO.UpdateUTXO(NewBlock, tx)
+		err = bc.UTXO.UpdateUTXO(newBlock, tx)
 		if err != nil {
 			return fmt.Errorf("update UTXO set: %w", err)
 		}
@@ -340,7 +340,7 @@ func (bc *BlockChain) AddBlock(transactions []*Transaction) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("Add block: update new block into database: %w", err)
+		return fmt.Errorf("add block: update new block into database: %w", err)
 	}
 
 	bc.BestState = candidate
@@ -353,17 +353,17 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 	defer bc.mu.Unlock()
 
 	if chainBlock.Block == nil {
-		return fmt.Errorf("Accept chain block: block is empty")
+		return fmt.Errorf("accept chain block: block is empty")
 	}
 
 	expectedHeight := bc.BestState.BlockHeight + 1
 	if chainBlock.Height != expectedHeight {
-		return fmt.Errorf("Accept chain block: unexpected height got %d want %d",
+		return fmt.Errorf("accept chain block: unexpected height got %d want %d",
 			chainBlock.Height, expectedHeight)
 	}
 
 	if !bytes.Equal(chainBlock.Block.PrevHash, bc.BestState.Hash) {
-		return fmt.Errorf("Accept chain block: prev hash mismatch")
+		return fmt.Errorf("accept chain block: prev hash mismatch")
 	}
 
 	if !bytes.Equal(chainBlock.Block.ComputeHash(), chainBlock.Block.Hash) {
@@ -374,7 +374,7 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 	// pow is not verified， and it will be adder later
 	pow := NewProofOfWork(chainBlock.Block)
 	if !pow.Check() {
-		return fmt.Errorf("Accept chain block: invalid proof of work")
+		return fmt.Errorf("accept chain block: invalid proof of work")
 	}
 
 	txs := chainBlock.Block.Transactions
@@ -382,7 +382,7 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 
 		err := bc.VerifyTransaction(tx)
 		if err != nil {
-			return fmt.Errorf("Accpet chain block: invalid transaction: %w", err)
+			return fmt.Errorf("accept chain block: invalid transaction: %w", err)
 		}
 	}
 
@@ -392,7 +392,7 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 		BlockHeight: bc.BestState.BlockHeight + 1,
 		Hash:        chainBlock.Block.ComputeHash(),
 	}
-	NewBlock := chainBlock.Block
+	newBlock := chainBlock.Block
 	err := bc.DB.Update(func(tx database.Tx) error {
 
 		blockBucket := tx.Bucket("blocks")
@@ -405,11 +405,11 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 			return fmt.Errorf("failed to find HeightIdx bucket")
 		}
 
-		bytesBlock, err := NewBlock.SerializeBlock()
+		bytesBlock, err := newBlock.SerializeBlock()
 		if err != nil {
 			return fmt.Errorf("serialize new block: %w", err)
 		}
-		err = blockBucket.Put(NewBlock.Hash, bytesBlock)
+		err = blockBucket.Put(newBlock.Hash, bytesBlock)
 		if err != nil {
 			return fmt.Errorf("update new block: %w", err)
 		}
@@ -419,12 +419,12 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 			return fmt.Errorf("convert block height to bytes: %w", err)
 		}
 
-		err = HeightIdxBucket.Put(blockHeightBytes, NewBlock.Hash)
+		err = HeightIdxBucket.Put(blockHeightBytes, newBlock.Hash)
 		if err != nil {
 			return fmt.Errorf("update HeightIdx: %w", err)
 		}
 
-		err = bc.UTXO.UpdateUTXO(NewBlock, tx)
+		err = bc.UTXO.UpdateUTXO(newBlock, tx)
 		if err != nil {
 			return fmt.Errorf("update UTXO set: %w", err)
 		}
@@ -438,7 +438,7 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("Accept chain block: update new block into database: %w", err)
+		return fmt.Errorf("accept chain block: update new block into database: %w", err)
 	}
 
 	bc.BestState = candidate

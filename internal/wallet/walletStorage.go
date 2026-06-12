@@ -30,7 +30,7 @@ func (s *WalletStorage) Save(username string, w *Wallet) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("Store wallet: %w", err)
+		return fmt.Errorf("store wallet: %w", err)
 	}
 	return nil
 }
@@ -48,7 +48,7 @@ func (s *WalletStorage) Get(username string) (*Wallet, error) {
 		decode, err := DeserializedWallet(bytesWallet)
 
 		if err != nil {
-			return fmt.Errorf("Deserialize wallet: %w", err)
+			return fmt.Errorf("deserialize wallet: %w", err)
 		}
 
 		w = decode
@@ -56,7 +56,7 @@ func (s *WalletStorage) Get(username string) (*Wallet, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("Get wallet: %w", err)
+		return nil, fmt.Errorf("get wallet: %w", err)
 	}
 	return w, nil
 }
@@ -71,7 +71,7 @@ func (s *WalletStorage) List() (map[string]*Wallet, error) {
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
 			decode, err := DeserializedWallet(v)
 			if err != nil {
-				return fmt.Errorf("Deserialize wallet: %w", err)
+				return fmt.Errorf("deserialize wallet: %w", err)
 			}
 			wallets[string(k)] = decode
 		}
@@ -79,7 +79,7 @@ func (s *WalletStorage) List() (map[string]*Wallet, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("List wallet: %w", err)
+		return nil, fmt.Errorf("list wallet: %w", err)
 	}
 	return wallets, nil
 }
@@ -96,7 +96,7 @@ func (s *WalletStorage) Delete(username string) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("Delete wallet: %w", err)
+		return fmt.Errorf("delete wallet: %w", err)
 	}
 	return nil
 }

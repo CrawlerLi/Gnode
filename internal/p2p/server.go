@@ -16,8 +16,8 @@ type Server struct {
 	NodeID     string
 	Addr       string
 
-	ChainStateProvider func() (int, []byte, error)
-	ChainBlockProvider func(startHeight int, limits int) ([]BlockPayload, error)
+	ChainStateProvider     func() (int, []byte, error)
+	ChainBlockPeerProvider func(startHeight int, limits int) ([]BlockPayload, error)
 
 	pb.UnimplementedPeerServiceServer
 }
@@ -28,7 +28,7 @@ type BlockPayload struct {
 }
 
 func (s *Server) Ping(_ context.Context, in *pb.PingRequest) (*pb.PingResponse, error) {
-	log.Printf("Received ping from node %s", in.GetNodeId())
+	log.Printf("received ping from node %s", in.GetNodeId())
 
 	return &pb.PingResponse{
 		NodeId:  s.NodeID,
@@ -38,11 +38,11 @@ func (s *Server) Ping(_ context.Context, in *pb.PingRequest) (*pb.PingResponse, 
 }
 
 func (s *Server) GetChainState(_ context.Context, in *pb.ChainStateRequest) (*pb.ChainStateResponse, error) {
-	log.Printf("Received get chianstate request from node %s", in.GetNodeId())
+	log.Printf("received get chianstate request from node %s", in.GetNodeId())
 
 	height, bestHash, err := s.ChainStateProvider()
 	if err != nil {
-		return nil, fmt.Errorf("Get chain state: call chain state provider: %w", err)
+		return nil, fmt.Errorf("get chain state: call chain state provider: %w", err)
 	}
 
 	return &pb.ChainStateResponse{
@@ -52,14 +52,23 @@ func (s *Server) GetChainState(_ context.Context, in *pb.ChainStateRequest) (*pb
 	}, nil
 }
 
-func (s *Server) GetBlocksFromHeight(_ context.Context, in *pb.GetBlocksFromHeightRequest) (resp *pb.GetBlocksFromHeightResponse, err error) {
-	log.Printf("Received get blocks request from node %s, peer block height is %d", in.GetNodeId(), in.GetStartHeight())
-	BlockPayloads, err := s.ChainBlockProvider(int(in.GetStartHeight()), int(in.GetLimit()))
-	if err != nil {
-		return nil, fmt.Errorf("Get chain state: call blocks from height provider: %w", err)
+func (s *Server) GetBlocksFromHeight(_ context.Context, in *pb.GetBlocksFromHeightRequest) (*pb.GetBlocksFromHeightResponse, error) {
+	log.Printf("received get blocks request from node %s, peer block height is %d", in.GetNodeId(), in.GetStartHeight())
+	if s.ChainBlockPeerProvider == nil {
+		return nil, fmt.Errorf("get blocks from height: chain block peer provider is nil")
 	}
 
-	for _, block := range BlockPayloads {
+	blockPayloads, err := s.ChainBlockPeerProvider(int(in.GetStartHeight()), int(in.GetLimit()))
+	if err != nil {
+		return nil, fmt.Errorf("get blocks from height: call blocks from height provider: %w", err)
+	}
+
+	resp := &pb.GetBlocksFromHeightResponse{
+		NodeId: s.NodeID,
+		Blocks: make([]*pb.BlockData, 0, len(blockPayloads)),
+	}
+
+	for _, block := range blockPayloads {
 		resp.Blocks = append(resp.Blocks, &pb.BlockData{
 			Height: int32(block.Height),
 			Block:  block.Block,

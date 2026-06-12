@@ -11,7 +11,7 @@ type UTXOSet struct {
 	db database.DB
 }
 
-type SpendabeleUTXO struct {
+type SpendabelUTXO struct {
 	OutPoint OutPoint
 	Output   TxOutput
 }
@@ -90,9 +90,9 @@ func (u *UTXOSet) Snapshot() (utxoSnapshot map[*OutPoint]TxOutput, e error) {
 	return utxoSnapshot, nil
 }
 
-func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) ([]SpendabeleUTXO, int, error) {
+func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) ([]SpendabelUTXO, int, error) {
 
-	payable := []SpendabeleUTXO{}
+	payable := []SpendabelUTXO{}
 	acc := 0
 
 	err := u.db.View(func(dbTx database.Tx) error {
@@ -117,7 +117,7 @@ func (u *UTXOSet) FindSpendableUTXOS(amount int, pubkeyHash []byte) ([]Spendabel
 				}
 
 				acc += output.Value
-				payable = append(payable, SpendabeleUTXO{OutPoint: outPoint, Output: output})
+				payable = append(payable, SpendabelUTXO{OutPoint: outPoint, Output: output})
 
 				if acc >= amount {
 					break

@@ -45,7 +45,19 @@ func (c *Client) Ping(ctx context.Context) (*pb.PingResponse, error) {
 func (c *Client) GetChainState(ctx context.Context) (*pb.ChainStateResponse, error) {
 	resp, err := c.Gclient.GetChainState(ctx, &pb.ChainStateRequest{NodeId: c.LocalNodeID})
 	if err != nil {
-		return nil, fmt.Errorf("get chain state: %w", err)
+		return nil, fmt.Errorf("get chain state: rpc call: %w", err)
 	}
+	return resp, nil
+}
+
+func (c *Client) GetBlocksFromHeight(ctx context.Context, startHeight int, limit int) (*pb.GetBlocksFromHeightResponse, error) {
+	resp, err := c.Gclient.GetBlocksFromHeight(ctx, &pb.GetBlocksFromHeightRequest{
+		NodeId:      c.LocalNodeID,
+		StartHeight: int32(startHeight),
+		Limit:       int32(limit)})
+	if err != nil {
+		return nil, fmt.Errorf("get blocks from height: rpc call: %w", err)
+	}
+
 	return resp, nil
 }

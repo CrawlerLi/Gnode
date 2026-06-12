@@ -71,7 +71,7 @@ func (ws *WalletService) GetWallet(username string) (*WalletInfo, error) {
 func (ws *WalletService) GetWorkerWallet() (*WalletInfo, error) {
 	walletsList, err := ws.store.List()
 	if err != nil {
-		return nil, fmt.Errorf("Get worker wallet: get wallets list: %w", err)
+		return nil, fmt.Errorf("get worker wallet: get wallets list: %w", err)
 	}
 
 	for username, wallet := range walletsList {
@@ -91,7 +91,7 @@ func (ws *WalletService) GetWorkerWallet() (*WalletInfo, error) {
 func (ws *WalletService) ListWallets() ([]*WalletInfo, error) {
 	walletsList, err := ws.store.List()
 	if err != nil {
-		return nil, fmt.Errorf("List wallets: get wallets list: %w", err)
+		return nil, fmt.Errorf("list wallets: get wallets list: %w", err)
 	}
 
 	var walletInfolist []*WalletInfo
@@ -147,7 +147,7 @@ func (ws *WalletService) Transfer(fromUser string, to string, amount int) (*Tran
 
 	wallet, err := ws.store.Get(fromUser)
 	if err != nil {
-		return nil, fmt.Errorf("Transfer coin: get send wallet : %w", err)
+		return nil, fmt.Errorf("transfer coin: get send wallet : %w", err)
 	}
 
 	var tx *core.Transaction
@@ -155,14 +155,14 @@ func (ws *WalletService) Transfer(fromUser string, to string, amount int) (*Tran
 
 	payable, acc, err := ws.bc.UTXO.FindSpendableUTXOS(amount, pubkeyHash)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find payable UTXO: %w", err)
+		return nil, fmt.Errorf("failed to find payable UTXO: %w", err)
 	}
 
 	if acc < amount {
 		return nil, fmt.Errorf("banlance do not enough")
 	}
 
-	var Vin []core.TxInput
+	var vin []core.TxInput
 	prevOutputs := make(map[string]core.TxOutput)
 
 	for _, spendableUTXO := range payable {
@@ -174,7 +174,7 @@ func (ws *WalletService) Transfer(fromUser string, to string, amount int) (*Tran
 			Pubkey:   wallet.Publickey,
 		}
 
-		Vin = append(Vin, txin)
+		vin = append(vin, txin)
 		prevOutputs[spendableUTXO.OutPoint.String()] = spendableUTXO.Output
 
 	}
@@ -192,15 +192,15 @@ func (ws *WalletService) Transfer(fromUser string, to string, amount int) (*Tran
 		ScriptPubkey: TopubkeyHash,
 	}
 
-	Vout := []core.TxOutput{txout}
+	vout := []core.TxOutput{txout}
 
 	if acc > amount {
-		Vout = append(Vout, core.TxOutput{Value: acc - amount, ScriptPubkey: pubkeyHash})
+		vout = append(vout, core.TxOutput{Value: acc - amount, ScriptPubkey: pubkeyHash})
 	}
 
 	tx = &core.Transaction{
-		Vin:  Vin,
-		Vout: Vout,
+		Vin:  vin,
+		Vout: vout,
 	}
 
 	txID, err := tx.Hash()
@@ -216,13 +216,13 @@ func (ws *WalletService) Transfer(fromUser string, to string, amount int) (*Tran
 
 	NewCoinbaseTx, err := core.NewCoinBase(crypto.HashPubkey(wallet.Publickey))
 	if err != nil {
-		return nil, fmt.Errorf("Transfer: create new coinbase tx: %w", err)
+		return nil, fmt.Errorf("transfer: create new coinbase tx: %w", err)
 	}
 
 	// A memory pool will be implemented here later
 	err = ws.bc.AddBlock([]*core.Transaction{tx, NewCoinbaseTx})
 	if err != nil {
-		return nil, fmt.Errorf("Transfer: write data on-chian %w", err)
+		return nil, fmt.Errorf("transfer: write data on-chian %w", err)
 	}
 
 	return &TransferReslut{TxID: fmt.Sprintf("%x", tx.ID)}, nil

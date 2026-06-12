@@ -20,9 +20,9 @@ type Node struct {
 }
 
 type PingResponse struct {
-	PeerAddr    string
-	RemotNodeID string
-	Messgae     string
+	PeerAddr     string
+	RemoteNodeID string
+	Message      string
 }
 
 type PeerChainState struct {
@@ -32,6 +32,17 @@ type PeerChainState struct {
 	LastHash     []byte
 }
 
+type PeerBlocks struct {
+	PeerAddr     string
+	RemoteNodeID string
+	BlocksData   []BlockData
+}
+
+type BlockData struct {
+	Height int
+	Blocks []byte
+}
+
 func InitNode(appService *service.AppService, localNodeID string, localNodeAddr string, peersAddr []string) (*Node, error) {
 	server, err := p2p.NewServer(localNodeAddr, localNodeID)
 	if err != nil {
@@ -39,12 +50,30 @@ func InitNode(appService *service.AppService, localNodeID string, localNodeAddr 
 	}
 
 	server.ChainStateProvider = func() (int, []byte, error) {
-		state, err := appService.ChainService.RequireChainState()
+		state, err := appService.ChainService.GetChainState()
 		if err != nil {
 			return 0, nil, err
 		}
 
 		return state.Height, state.LastHash, nil
+	}
+
+	server.ChainBlockPeerProvider = func(startHeight int, limit int) ([]p2p.BlockPayload, error) {
+		blocks, err := appService.ChainService.GetSerializedBlocksFromHeight(startHeight, limit)
+		if err != nil {
+			return nil, fmt.Errorf("chain block peer provider: %w", err)
+		}
+
+		blockPayloads := make([]p2p.BlockPayload, 0, len(blocks))
+		for _, block := range blocks {
+			blockPayloads = append(blockPayloads, p2p.BlockPayload{
+				Height: block.Height,
+				Block:  block.Block,
+			})
+		}
+
+		return blockPayloads, nil
+
 	}
 
 	n := &Node{
@@ -101,9 +130,9 @@ func (n *Node) PingPeer(peerAddr string) (*PingResponse, error) {
 		return nil, fmt.Errorf("ping peer %s: %w", peerAddr, err)
 	}
 	return &PingResponse{
-		PeerAddr:    peerAddr,
-		RemotNodeID: resp.NodeId,
-		Messgae:     resp.Message,
+		PeerAddr:     peerAddr,
+		RemoteNodeID: resp.NodeId,
+		Message:      resp.Message,
 	}, nil
 }
 
@@ -124,6 +153,38 @@ func (n *Node) GetPeerChainState(peerAddr string) (*PeerChainState, error) {
 		RemoteNodeID: resp.NodeId,
 		Height:       int(resp.Height),
 		LastHash:     resp.BestHash,
+	}, nil
+}
+
+func (n *Node) GetPeerBlocksFromHeight(localBestHeight int, limit int, peerAddr string) (*PeerBlocks, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	peer, ok := n.Peers[peerAddr]
+	if !ok || peer == nil {
+		return nil, fmt.Errorf("peer %s not connected", peerAddr)
+	}
+
+	resp, err := peer.GetBlocksFromHeight(ctx, localBestHeight, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get peer blocks from height: %w", err)
+	}
+
+	blocksData := make([]BlockData, 0, len(resp.Blocks))
+	for _, blockData := range resp.Blocks {
+		if blockData == nil {
+			return nil, fmt.Errorf("get peer blocks from height: nil block data")
+		}
+
+		blocksData = append(blocksData, BlockData{
+			Height: int(blockData.Height),
+			Blocks: append([]byte(nil), blockData.Block...),
+		})
+	}
+
+	return &PeerBlocks{
+		PeerAddr:     peerAddr,
+		RemoteNodeID: resp.NodeId,
+		BlocksData:   blocksData,
 	}, nil
 }
 

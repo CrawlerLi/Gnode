@@ -184,8 +184,8 @@ func PrintchainInfo(chainInfo *service.ChainInfo) error {
 	blockHeight := chainInfo.Height
 	fmt.Println()
 	fmt.Printf("+++++++++ START PRINTING BLOCKCHAIN, CURRENT BLOCK HEIGHT IS %d ++++++++++\n", blockHeight)
-	for i, block := range blocks {
-		fmt.Printf("========= BLOCKCHAIN %d =========\n", len(blocks)-i-1)
+	for _, block := range blocks {
+		fmt.Printf("========= BLOCKCHAIN %d =========\n", block.Height)
 		fmt.Printf("CURRENT BLOCKCHAIN HASH: %x\n", block.Hash)
 		fmt.Printf("PREVIOUS BLOCKCHAIN HASH: %x\n", block.PrevHash)
 		fmt.Println()
@@ -214,7 +214,7 @@ func initApp(minerAddress, configFilePath string) error {
 	}
 	defer server.Close()
 
-	chainInfo, err := server.ChainService.RequireChainInfo()
+	chainInfo, err := server.ChainService.GetChainInfo()
 
 	if server != nil {
 		fmt.Println("node and chain initialized")
@@ -349,13 +349,13 @@ func transfer(fromUser, toAddress string, amount int, chainDBFile string, wallet
 func printChain(chaindbFile string, walletdbFile string) error {
 	appserver, err := service.OpenServices(chaindbFile, walletdbFile)
 	if err != nil {
-		return fmt.Errorf("open appserver: %w", err)
+		return fmt.Errorf("print chain: open appserver: %w", err)
 	}
 	defer appserver.Close()
 
-	chainInfo, err := appserver.ChainService.RequireChainInfo()
+	chainInfo, err := appserver.ChainService.GetChainInfo()
 	if err != nil {
-		return fmt.Errorf("print chain: require blockchain info: %w", err)
+		return fmt.Errorf("print chain: %w", err)
 	}
 	return PrintchainInfo(chainInfo)
 }
@@ -399,7 +399,7 @@ func removeDBFile(path string) error {
 func runNode(configFilePath string) error {
 	nodeConfig, err := loadNodeConfig(configFilePath)
 	if err != nil {
-		return fmt.Errorf("run Node: %w", err)
+		return fmt.Errorf("run node: %w", err)
 	}
 
 	appService, err := service.OpenServices(nodeConfig.ChainDB, nodeConfig.WalletDB)
@@ -426,7 +426,7 @@ func runNode(configFilePath string) error {
 			//Poll to check connection status
 			continue
 		}
-		log.Printf("Received ping response [%s] from %s", resp.Messgae, peerAddr)
+		log.Printf("Received ping response [%s] from %s", resp.Message, peerAddr)
 	}
 
 	interrupt := make(chan os.Signal, 1)
