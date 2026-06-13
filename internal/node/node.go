@@ -3,6 +3,10 @@ package node
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/CrawlerLi/Gnode/internal/p2p"
@@ -35,12 +39,7 @@ type PeerChainState struct {
 type PeerBlocks struct {
 	PeerAddr     string
 	RemoteNodeID string
-	BlocksData   []BlockData
-}
-
-type BlockData struct {
-	Height int
-	Blocks []byte
+	BlocksData   []service.SerializedChainBlock
 }
 
 func InitNode(appService *service.AppService, localNodeID string, localNodeAddr string, peersAddr []string) (*Node, error) {
@@ -169,15 +168,15 @@ func (n *Node) GetPeerBlocksFromHeight(localBestHeight int, limit int, peerAddr 
 		return nil, fmt.Errorf("get peer blocks from height: %w", err)
 	}
 
-	blocksData := make([]BlockData, 0, len(resp.Blocks))
+	blocksData := make([]service.SerializedChainBlock, 0, len(resp.Blocks))
 	for _, blockData := range resp.Blocks {
 		if blockData == nil {
 			return nil, fmt.Errorf("get peer blocks from height: nil block data")
 		}
 
-		blocksData = append(blocksData, BlockData{
+		blocksData = append(blocksData, service.SerializedChainBlock{
 			Height: int(blockData.Height),
-			Blocks: append([]byte(nil), blockData.Block...),
+			Block:  append([]byte(nil), blockData.Block...),
 		})
 	}
 
@@ -188,13 +187,100 @@ func (n *Node) GetPeerBlocksFromHeight(localBestHeight int, limit int, peerAddr 
 	}, nil
 }
 
-func (n *Node) Start() {
+func (n *Node) Start() error {
 	go func() {
+		log.Printf("node %s listening on %s\n", n.ID, n.Addr)
 		if err := n.Server.Start(); err != nil {
 			n.errCh <- err
 		}
 	}()
 
+	for peerAddr := range n.Peers {
+		log.Printf("connected peer: %s\n", peerAddr)
+		//for ping test
+		resp, err := n.PingPeer(peerAddr)
+		if err != nil {
+			log.Printf("failed to ping peer %s: %v", peerAddr, err)
+			//Poll to check connection status
+			continue
+		}
+		log.Printf("Received ping response [%s] from %s", resp.Message, peerAddr)
+	}
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(interrupt)
+
+	peerChainStateTicker := time.NewTicker(2 * time.Second)
+	defer peerChainStateTicker.Stop()
+
+	for {
+		select {
+		case <-interrupt:
+			log.Println("node shutting down")
+			return nil
+		case err := <-n.Errch():
+			if err != nil {
+				return fmt.Errorf("run node: node stopped unexpectedly: %w", err)
+			}
+		case <-peerChainStateTicker.C:
+			peerBestHeight := 0
+			peerBestStateAddress := ""
+			for peerAddr := range n.Peers {
+				peerState, err := n.GetPeerChainState(peerAddr)
+				if err != nil {
+					log.Printf("failed to get peer %s chainstate: %v", peerAddr, err)
+					continue
+				}
+				log.Printf("peer chain state: peer=%s, node=%s height=%d, besthash=%x\n",
+					peerState.PeerAddr,
+					peerState.RemoteNodeID,
+					peerState.Height,
+					peerState.LastHash)
+				if peerBestHeight < peerState.Height {
+					peerBestHeight = peerState.Height
+					peerBestStateAddress = peerAddr
+				}
+			}
+			localBestState, err := n.AppService.ChainService.GetChainState()
+			if err != nil {
+				return fmt.Errorf("run node : %w", err)
+			}
+
+			if localBestState.Height < peerBestHeight {
+				log.Printf("get best state from peer %s, peer block height is %d, local block height is %d\n",
+					peerBestStateAddress,
+					peerBestHeight,
+					localBestState.Height)
+
+				log.Printf("start getting blocks from peer %s\n", peerBestStateAddress)
+				peerBlocks, err := n.GetPeerBlocksFromHeight(localBestState.Height, 20, peerBestStateAddress)
+				if err != nil {
+					return fmt.Errorf("run Node: get peer %s blocks from height at %d: %w",
+						peerBestStateAddress,
+						peerBestHeight,
+						err)
+				}
+				if peerBlocks == nil {
+					return fmt.Errorf("run Node: get peer %s blocks from height at %d: peerBlocks is nil",
+						peerBestStateAddress,
+						peerBestHeight)
+				}
+
+				peerLastBlockHeight := peerBlocks.BlocksData[len(peerBlocks.BlocksData)-1].Height
+				log.Printf("start accepting blocks from peer %s\n, at Height %d to %d",
+					peerBestStateAddress,
+					localBestState.Height+1,
+					peerLastBlockHeight)
+				err = n.AppService.ChainService.SyncChainBlocks(peerBlocks.BlocksData)
+				if err != nil {
+					return fmt.Errorf("run Node: %w", err)
+				}
+			}
+
+		}
+
+	}
 }
 
 func (n *Node) Errch() <-chan error {

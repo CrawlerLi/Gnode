@@ -5,17 +5,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/CrawlerLi/Gnode/internal/config"
-	"github.com/CrawlerLi/Gnode/internal/infra/database"
 	"github.com/CrawlerLi/Gnode/internal/node"
 	"github.com/CrawlerLi/Gnode/internal/service"
-	"github.com/CrawlerLi/Gnode/internal/wallet"
 )
 
 func main() {
@@ -215,45 +210,19 @@ func initApp(minerAddress, configFilePath string) error {
 	defer server.Close()
 
 	chainInfo, err := server.ChainService.GetChainInfo()
-
+	if err != nil {
+		return fmt.Errorf("init chain: require blockchain status after initialization: %w", err)
+	}
 	if server != nil {
 		fmt.Println("node and chain initialized")
 		PrintchainInfo(chainInfo)
 	}
 
-	if err != nil {
-		return fmt.Errorf("init chain: require blockchain status after initialization: %w", err)
-	}
-
 	return nil
 }
 
-func openWalletService(walletDBFile string) (*service.WalletService, func() error, error) {
-	db, err := database.OpenDB(walletDBFile)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open wallet db: %w", err)
-	}
-
-	if err := db.CreateBucket("Wallet"); err != nil {
-		db.Close()
-		return nil, nil, fmt.Errorf("create wallet bucket: %w", err)
-	}
-
-	ws := service.NewWalletService(wallet.NewWalletStorage(db), nil)
-	return ws, db.Close, nil
-}
-
-func openAppWalletService(chainDBFile string, walletDBFile string) (*service.WalletService, func() error, error) {
-	app, err := service.OpenServices(chainDBFile, walletDBFile)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return app.WalletService, app.Close, nil
-}
-
 func createWallet(username, role, dbFile string) error {
-	ws, closeFn, err := openWalletService(dbFile)
+	ws, closeFn, err := service.OpenWalletService(dbFile)
 	if err != nil {
 		return err
 	}
@@ -274,7 +243,7 @@ func createWallet(username, role, dbFile string) error {
 }
 
 func getWallet(username, dbFile string) error {
-	ws, closeFn, err := openWalletService(dbFile)
+	ws, closeFn, err := service.OpenWalletService(dbFile)
 	if err != nil {
 		return err
 	}
@@ -292,7 +261,7 @@ func getWallet(username, dbFile string) error {
 }
 
 func listWallets(dbFile string) error {
-	ws, closeFn, err := openWalletService(dbFile)
+	ws, closeFn, err := service.OpenWalletService(dbFile)
 	if err != nil {
 		return err
 	}
@@ -315,13 +284,13 @@ func listWallets(dbFile string) error {
 }
 
 func getBalance(username, chainDBFile string, walletDBFile string) error {
-	ws, closeFn, err := openAppWalletService(chainDBFile, walletDBFile)
+	appService, err := service.OpenServices(chainDBFile, walletDBFile)
 	if err != nil {
 		return err
 	}
-	defer closeFn()
+	defer appService.Close()
 
-	balance, err := ws.GetBalance(username)
+	balance, err := appService.WalletService.GetBalance(username)
 	if err != nil {
 		return fmt.Errorf("get balance: %w", err)
 	}
@@ -331,13 +300,13 @@ func getBalance(username, chainDBFile string, walletDBFile string) error {
 }
 
 func transfer(fromUser, toAddress string, amount int, chainDBFile string, walletDBFile string) error {
-	ws, closeFn, err := openAppWalletService(chainDBFile, walletDBFile)
+	appService, err := service.OpenServices(chainDBFile, walletDBFile)
 	if err != nil {
 		return err
 	}
-	defer closeFn()
+	defer appService.Close()
 
-	res, err := ws.Transfer(fromUser, toAddress, amount)
+	res, err := appService.WalletService.Transfer(fromUser, toAddress, amount)
 	if err != nil {
 		return fmt.Errorf("transfer: %w", err)
 	}
@@ -415,53 +384,10 @@ func runNode(configFilePath string) error {
 
 	defer n.Stop()
 
-	n.Start()
-	fmt.Printf("node %s listening on %s\n", n.ID, n.Addr)
-	for peerAddr := range n.Peers {
-		log.Printf("connected peer: %s\n", peerAddr)
-		//for ping test
-		resp, err := n.PingPeer(peerAddr)
-		if err != nil {
-			log.Printf("failed to ping peer %s: %v", peerAddr, err)
-			//Poll to check connection status
-			continue
-		}
-		log.Printf("Received ping response [%s] from %s", resp.Message, peerAddr)
-	}
+	err = n.Start()
 
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(interrupt)
+	return err
 
-	peerChainStateTicker := time.NewTicker(2 * time.Second)
-	defer peerChainStateTicker.Stop()
-
-	for {
-		select {
-		case <-interrupt:
-			fmt.Println("node shutting down")
-			return nil
-		case err := <-n.Errch():
-			if err != nil {
-				return fmt.Errorf("run node: node stopped unexpectedly: %w", err)
-			}
-		case <-peerChainStateTicker.C:
-			for peerAddr := range n.Peers {
-				state, err := n.GetPeerChainState(peerAddr)
-				if err != nil {
-					log.Printf("failed to get peer %s chainstate: %v", peerAddr, err)
-					continue
-				}
-				log.Printf("peer chain state: peer=%s, node=%s height=%d, besthash=%x\n",
-					state.PeerAddr,
-					state.RemoteNodeID,
-					state.Height,
-					state.LastHash)
-			}
-
-		}
-
-	}
 }
 
 func printUsage() {
@@ -471,7 +397,8 @@ func printUsage() {
 	fmt.Println("  go run ./cmd <command> [args]")
 	fmt.Println()
 	fmt.Println("commands:")
-	fmt.Println("  init  [configFilePath] [minerAddress]      initialize chain and genesis block")
+	fmt.Println("  init  [configFilePath] [minerAddress]      initialize chain and create genesis block")
+	fmt.Println("")
 	fmt.Println("  config show                                show active node config path")
 	fmt.Println("  config use <configFilePath>                set active node config path")
 	fmt.Println("  config reset                               reset active node config to default")

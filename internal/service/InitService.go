@@ -130,6 +130,21 @@ func OpenServices(chainDBFile string, walletDBFile string) (*AppService, error) 
 	}, nil
 }
 
+func OpenWalletService(walletDBFile string) (*WalletService, func() error, error) {
+	db, err := database.OpenDB(walletDBFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open wallet db: %w", err)
+	}
+
+	if err := db.CreateBucket("Wallet"); err != nil {
+		db.Close()
+		return nil, nil, fmt.Errorf("create wallet bucket: %w", err)
+	}
+
+	ws := NewWalletService(wallet.NewWalletStorage(db), nil)
+	return ws, db.Close, nil
+}
+
 func (app *AppService) Close() error {
 	var err error
 

@@ -134,11 +134,30 @@ func (bcs *BlockchainService) GetSerializedBlocksFromHeight(startHeight int, lim
 	return blocks, nil
 }
 
-func (bcs *BlockchainService) SyncChainBlocks(chainblocks []core.ChainBlock) error {
-	for _, chainblock := range chainblocks {
-		err := bcs.chain.AcceptChainBlock(chainblock)
+func (bcs *BlockchainService) DeserializedBlocksFromeHeight(scbs []SerializedChainBlock) ([]core.ChainBlock, error) {
+
+	chainBlocks := make([]core.ChainBlock, 0, len(scbs))
+	for _, serializedBlock := range scbs {
+		block, err := core.DeserializedBlock(serializedBlock.Block)
 		if err != nil {
-			return fmt.Errorf("sync chainblock at height %d: %w", chainblock.Height, err)
+			return nil, fmt.Errorf("deserialized blocks bytes to chain block: %w", err)
+		}
+		chainBlocks = append(chainBlocks, core.ChainBlock{
+			Height: serializedBlock.Height,
+			Block:  block})
+	}
+	return chainBlocks, nil
+}
+
+func (bcs *BlockchainService) SyncChainBlocks(scbs []SerializedChainBlock) error {
+	chainBlocks, err := bcs.DeserializedBlocksFromeHeight(scbs)
+	if err != nil {
+		return fmt.Errorf("sync block: %w", err)
+	}
+	for _, chainBlock := range chainBlocks {
+		err := bcs.chain.AcceptChainBlock(chainBlock)
+		if err != nil {
+			return fmt.Errorf("sync block at height %d: %w", chainBlock.Height, err)
 		}
 	}
 	return nil
