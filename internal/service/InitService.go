@@ -18,60 +18,60 @@ type AppService struct {
 	walletDB database.DB
 }
 
-func InitApp(minerAddress string, chainDBFile string, walletDBFile string) (*AppService, error) {
-	//here init wallet storage and wallet service, it may be reviesed later.
-	walletDB, err := database.OpenDB(walletDBFile)
+func InitLocalApp(minerAddress string, chainDBFile string, walletDBFile string) (*AppService, error) {
+	walletService, minerAddress, err := InitWalletSerivce(minerAddress, walletDBFile)
 	if err != nil {
-		return nil, fmt.Errorf("init chain: open wallet db: %w", err)
-	}
-
-	if err := walletDB.CreateBucket("Wallet"); err != nil {
-		walletDB.Close()
-		return nil, fmt.Errorf("init chain: create wallet bucket: %w", err)
-	}
-
-	walletStorage := wallet.NewWalletStorage(walletDB)
-	walletService := NewWalletService(walletStorage, nil)
-
-	if minerAddress == "" {
-		workerWalletInfo, err := walletService.GetWorkerWallet()
-		if err != nil {
-			if errors.Is(err, ErrWorkerWalletNotFound) {
-				if err := walletService.CreateWallet("worker", "miner"); err != nil {
-					walletDB.Close()
-					return nil, fmt.Errorf("init chain: create worker wallet: %w", err)
-				}
-
-				workerWalletInfo, err = walletService.GetWorkerWallet()
-				if err != nil {
-					walletDB.Close()
-					return nil, fmt.Errorf("init chain: reload worker wallet: %w", err)
-				}
-			} else {
-				walletDB.Close()
-				return nil, fmt.Errorf("init chain: get worker wallet: %w", err)
-			}
-		}
-
-		minerAddress = workerWalletInfo.Address
+		return nil, fmt.Errorf("init local app: %w", err)
 	}
 
 	minerPubkeyHash, err := crypto.AddressToPubkeyHash([]byte(minerAddress))
 	if err != nil {
-		walletDB.Close()
 		return nil, fmt.Errorf("init chain: parse miner address: %w", err)
 	}
 
-	bc, err := core.InitBlockChain(minerPubkeyHash, chainDBFile)
+	bc, err := core.InitBlockChain(chainDBFile)
+
+	coinbase, err := core.NewCoinBase(minerPubkeyHash)
 	if err != nil {
-		walletDB.Close()
-		return nil, fmt.Errorf("init chain: initialize blockchain: %w", err)
+		return nil, fmt.Errorf("init chain: create genesis coinbase tx: %w", err)
 	}
+
+	genesisBlock := core.NewGenesisBlock(coinbase)
+	err = bc.CommitGenesisBlock(genesisBlock)
+	if err != nil {
+		return nil, fmt.Errorf("init chain: %w", err)
+	}
+
 	walletService.bc = bc
 
 	chainService := &BlockchainService{
 		chain:       bc,
-		walletStore: walletStorage,
+		walletStore: walletService.store,
+	}
+
+	appService := &AppService{
+		ChainService:  chainService,
+		WalletService: walletService,
+		chainDB:       chainService.chain.DB,
+		walletDB:      walletService.store.DB,
+	}
+
+	return appService, nil
+}
+
+func SyncInit(minerAddress string, chainDBFile string, walletDBFile string) (*AppService, error) {
+	walletService, _, err := InitWalletSerivce(minerAddress, walletDBFile)
+	if err != nil {
+		return nil, fmt.Errorf("init local app: %w", err)
+	}
+
+	bc, err := core.InitBlockChain(chainDBFile)
+
+	walletService.bc = bc
+
+	chainService := &BlockchainService{
+		chain:       bc,
+		walletStore: walletService.store,
 	}
 
 	appService := &AppService{

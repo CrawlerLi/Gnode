@@ -75,13 +75,13 @@ type BlockChain struct {
 	mu sync.RWMutex
 }
 
-func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) {
+func InitBlockChain(path string) (bc *BlockChain, err error) {
 	db, err := database.InitDB(path)
 	if err != nil {
 		return nil, fmt.Errorf("newBlockchain: initialize database: %w", err)
 	}
 
-	newBC := &BlockChain{DB: db, UTXO: &UTXOSet{db: db}, BestState: newBestState(0, []byte{})}
+	newBC := &BlockChain{DB: db, UTXO: &UTXOSet{db: db}}
 
 	err = newBC.DB.CreateBucket("blocks")
 	if err != nil {
@@ -103,15 +103,39 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 		return nil, fmt.Errorf("newBlockchain: create HeightIdx bucket: %w", err)
 	}
 
-	coinbase, err := NewCoinBase(pubkeyHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NewGenesisBlock : %w", err)
+	candidateState := &BestState{
+		BlockHeight: 0,
+		Hash:        []byte{},
 	}
 
-	genesisblock := NewGenesisBlock(coinbase)
-	bestState := newBestState(1, genesisblock.Hash)
-
 	err = newBC.DB.Update(func(tx database.Tx) error {
+		err = updateBestState(candidateState, tx)
+		if err != nil {
+			return fmt.Errorf("failed to update best state: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("init block chain: failed to update best state: %w", err)
+	}
+
+	newBC.BestState = candidateState
+
+	return newBC, nil
+}
+
+func (bc *BlockChain) CommitGenesisBlock(genesisBlock *Block) error {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	candidateState := &BestState{
+		BlockHeight: 1,
+		Hash:        genesisBlock.Hash,
+	}
+
+	err := bc.DB.Update(func(tx database.Tx) error {
 		blockBucket := tx.Bucket("blocks")
 		if blockBucket == nil {
 			return fmt.Errorf("failed to find blocks bucket")
@@ -122,31 +146,31 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 			return fmt.Errorf("failed to find HeightIdx bucket")
 		}
 
-		byteBlock, err := genesisblock.SerializeBlock()
+		byteBlock, err := genesisBlock.SerializeBlock()
 		if err != nil {
 			return fmt.Errorf("failed to serialize genesis block: %w", err)
 		}
 
-		err = blockBucket.Put(genesisblock.Hash, byteBlock)
+		err = blockBucket.Put(genesisBlock.Hash, byteBlock)
 		if err != nil {
 			return fmt.Errorf("failed to put genesis block into bucket: %w", err)
 		}
 
-		err = updateBestState(bestState, tx)
+		err = updateBestState(candidateState, tx)
 		if err != nil {
 			return fmt.Errorf("failed to update best state: %w", err)
 		}
 
-		err = newBC.UTXO.UpdateUTXO(genesisblock, tx)
+		err = bc.UTXO.UpdateUTXO(genesisBlock, tx)
 		if err != nil {
 			return fmt.Errorf("failed to update UTXO set: %w", err)
 		}
 
-		heightBytes, err := utils.IntToBytes(bestState.BlockHeight)
+		heightBytes, err := utils.IntToBytes(candidateState.BlockHeight)
 		if err != nil {
 			return fmt.Errorf("convert genesis height: %w", err)
 		}
-		if err := heightIdxBucket.Put(heightBytes, genesisblock.Hash); err != nil {
+		if err := heightIdxBucket.Put(heightBytes, genesisBlock.Hash); err != nil {
 			return fmt.Errorf("put genesis height index: %w", err)
 		}
 
@@ -154,12 +178,12 @@ func InitBlockChain(pubkeyHash []byte, path string) (bc *BlockChain, err error) 
 
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to add genesis block: %w", err)
+		return fmt.Errorf("commit genesis block: %w", err)
 	}
 
-	newBC.BestState = bestState
+	bc.BestState = candidateState
 
-	return newBC, nil
+	return nil
 }
 
 func OpenBlockChain(path string) (bc *BlockChain, err error) {
@@ -367,7 +391,9 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 	}
 
 	if !bytes.Equal(chainBlock.Block.ComputeHash(), chainBlock.Block.Hash) {
-		return fmt.Errorf("accept chain block: invalid block hash")
+		return fmt.Errorf("accept chain block: invalid block hash, computeHash is %x, block hash is %x",
+			chainBlock.Block.ComputeHash(),
+			chainBlock.Block.Hash)
 	}
 
 	//未验POW，后续添加

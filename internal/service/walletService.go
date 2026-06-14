@@ -1,9 +1,11 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/CrawlerLi/Gnode/internal/core"
+	"github.com/CrawlerLi/Gnode/internal/infra/database"
 	"github.com/CrawlerLi/Gnode/internal/wallet"
 	"github.com/CrawlerLi/Gnode/pkg/crypto"
 )
@@ -32,6 +34,48 @@ const (
 
 func NewWalletService(store *wallet.WalletStorage, bc *core.BlockChain) *WalletService {
 	return &WalletService{store: store, bc: bc}
+}
+
+func InitWalletSerivce(minerAddress string, walletDBFile string) (*WalletService, string, error) {
+	walletDB, err := database.OpenDB(walletDBFile)
+	defer walletDB.Close()
+	if err != nil {
+		return nil, "", fmt.Errorf("init wallet service: open wallet db: %w", err)
+	}
+
+	if err := walletDB.CreateBucket("Wallet"); err != nil {
+		walletDB.Close()
+		return nil, "", fmt.Errorf("init wallet service: create wallet bucket: %w", err)
+	}
+
+	walletStorage := wallet.NewWalletStorage(walletDB)
+	walletService := NewWalletService(walletStorage, nil)
+
+	if minerAddress == "" {
+		workerWalletInfo, err := walletService.GetWorkerWallet()
+		if err != nil {
+			if errors.Is(err, ErrWorkerWalletNotFound) {
+				if err := walletService.CreateWallet("worker", "miner"); err != nil {
+					walletDB.Close()
+					return nil, "", fmt.Errorf("init wallet service: create worker wallet: %w", err)
+				}
+
+				workerWalletInfo, err = walletService.GetWorkerWallet()
+				if err != nil {
+					walletDB.Close()
+					return nil, "", fmt.Errorf("init wallet service: reload worker wallet: %w", err)
+				}
+			} else {
+				walletDB.Close()
+				return nil, "", fmt.Errorf("init wallet service: get worker wallet: %w", err)
+			}
+		}
+
+		minerAddress = workerWalletInfo.Address
+	}
+
+	return walletService, minerAddress, nil
+
 }
 
 func (ws *WalletService) CreateWallet(username string, role string) error {

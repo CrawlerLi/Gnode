@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"math"
 	"math/big"
 )
@@ -39,20 +38,19 @@ func (pow *ProofOfWork) PrepareData(nonce int64) []byte {
 
 func (pow *ProofOfWork) Run() (int64, []byte) {
 
-	var predata []byte
-	var hash [32]byte
+	var hashBytes []byte
 	var hashInt big.Int
 	var nonce int64
 
 	for nonce = int64(0); nonce < math.MaxInt64; nonce++ {
-		predata = pow.PrepareData(nonce)
-		hash = sha256.Sum256(predata)
-		hashInt.SetBytes(hash[:])
+		pow.block.Nonce = nonce
+		hashBytes = pow.block.ComputeHash()
+		hashInt.SetBytes(hashBytes)
 		if hashInt.Cmp(pow.target) == -1 {
 			break
 		}
 	}
-	return nonce, hash[:]
+	return nonce, hashBytes
 }
 
 func (pow *ProofOfWork) Check() bool {

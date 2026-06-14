@@ -68,7 +68,13 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("%w: usage: init [configFilePath] [minerAddress]", err)
 		}
-		return initApp(minerAdress, configFilePath)
+		return initLocalApp(minerAdress, configFilePath)
+	case "sync-init":
+		minerAdress, configFilePath, err := InitParsing(args)
+		if err != nil {
+			return fmt.Errorf("%w: usage: init [configFilePath] [minerAddress]", err)
+		}
+		return syncInit(minerAdress, configFilePath)
 	case "config":
 		return runConfigCommand(args)
 	case "create-wallet":
@@ -189,35 +195,58 @@ func PrintchainInfo(chainInfo *service.ChainInfo) error {
 	return nil
 }
 
-func initApp(minerAddress, configFilePath string) error {
+func initLocalApp(minerAddress, configFilePath string) error {
 	nodeConfig, err := loadNodeConfig(configFilePath)
 	if err != nil {
-		return fmt.Errorf("init app: %w", err)
+		return fmt.Errorf("init local app: %w", err)
 	}
 	chainDBFile := nodeConfig.ChainDB
 	dbWalletFile := nodeConfig.WalletDB
 	initialized, err := service.IsChainInitialized(chainDBFile)
 	if err != nil {
-		return fmt.Errorf("init app: check chain initialized: %w", err)
+		return fmt.Errorf("init local app: check chain initialized: %w", err)
 	}
 	if initialized {
-		return fmt.Errorf("init app: chain already initialized")
+		return fmt.Errorf("init local app: chain already initialized")
 	}
-	server, err := service.InitApp(minerAddress, chainDBFile, dbWalletFile)
+	server, err := service.InitLocalApp(minerAddress, chainDBFile, dbWalletFile)
 	if err != nil {
-		return fmt.Errorf("init chain: open services: %w", err)
+		return fmt.Errorf("init local app: open services: %w", err)
 	}
 	defer server.Close()
 
 	chainInfo, err := server.ChainService.GetChainInfo()
 	if err != nil {
-		return fmt.Errorf("init chain: require blockchain status after initialization: %w", err)
+		return fmt.Errorf("init local app: require blockchain status after initialization: %w", err)
 	}
 	if server != nil {
-		fmt.Println("node and chain initialized")
+		log.Println("node and chain initialized")
 		PrintchainInfo(chainInfo)
 	}
 
+	return nil
+}
+
+func syncInit(minerAddress, configFilePath string) error {
+	nodeConfig, err := loadNodeConfig(configFilePath)
+	if err != nil {
+		return fmt.Errorf("sync init: %w", err)
+	}
+	chainDBFile := nodeConfig.ChainDB
+	dbWalletFile := nodeConfig.WalletDB
+	initialized, err := service.IsChainInitialized(chainDBFile)
+	if err != nil {
+		return fmt.Errorf("sync init: check chain initialized: %w", err)
+	}
+	if initialized {
+		return fmt.Errorf("sync init: chain already initialized")
+	}
+	server, err := service.SyncInit(minerAddress, chainDBFile, dbWalletFile)
+	if err != nil {
+		return fmt.Errorf("init local app: open services: %w", err)
+	}
+	log.Printf("node and chain initialize for sync")
+	defer server.Close()
 	return nil
 }
 
@@ -391,14 +420,14 @@ func runNode(configFilePath string) error {
 }
 
 func printUsage() {
-	fmt.Println("myMiniBitcoin CLI")
+	fmt.Println("GNODE CLI")
 	fmt.Println()
 	fmt.Println("usage:")
 	fmt.Println("  go run ./cmd <command> [args]")
 	fmt.Println()
 	fmt.Println("commands:")
 	fmt.Println("  init  [configFilePath] [minerAddress]      initialize chain and create genesis block")
-	fmt.Println("")
+	fmt.Println("  sync-init [configFilePath] [minerAddress]  initialize for sync from peer")
 	fmt.Println("  config show                                show active node config path")
 	fmt.Println("  config use <configFilePath>                set active node config path")
 	fmt.Println("  config reset                               reset active node config to default")
