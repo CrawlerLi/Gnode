@@ -189,6 +189,14 @@ func PrintchainInfo(chainInfo *service.ChainInfo) error {
 		fmt.Printf("========= BLOCKCHAIN %d =========\n", block.Height)
 		fmt.Printf("CURRENT BLOCKCHAIN HASH: %x\n", block.Hash)
 		fmt.Printf("PREVIOUS BLOCKCHAIN HASH: %x\n", block.PrevHash)
+		fmt.Printf("Number of including transaction: %d\n", block.TxNums)
+
+		for i, txInfo := range block.Txs {
+			fmt.Printf("***Tx %d ***\n", i)
+			fmt.Printf("The Tx id is %x\n", txInfo.Txid)
+			fmt.Printf("The Nums of Vin is %d\n", txInfo.VinNums)
+			fmt.Printf("The Nums of Vout is %d\n", txInfo.VoutNums)
+		}
 		fmt.Println()
 	}
 	fmt.Println("++++++++++++++++++ BLOCKCHAIN PRINTING ENDING SYMBOL  ++++++++++++++++++++")

@@ -473,6 +473,7 @@ func (bc *BlockChain) AcceptChainBlock(chainBlock ChainBlock) error {
 }
 
 func (bc *BlockChain) VerifyTransaction(tx *Transaction) error {
+	fmt.Printf("VerifyTransaction called txid=%x coinbase=%v\n", tx.ID, IsCoinBase(tx))
 	if IsCoinBase(tx) {
 		return nil
 	}

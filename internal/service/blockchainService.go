@@ -24,6 +24,8 @@ type BlockInfo struct {
 	Height   int
 	Hash     []byte
 	PrevHash []byte
+	TxNums   int
+	Txs      []TransactionInfo
 }
 
 type ChainState struct {
@@ -34,6 +36,12 @@ type ChainState struct {
 type SerializedChainBlock struct {
 	Height int
 	Block  []byte
+}
+
+type TransactionInfo struct {
+	Txid     []byte
+	VinNums  int
+	VoutNums int
 }
 
 func (bcs *BlockchainService) GetChainInfo() (*ChainInfo, error) {
@@ -75,10 +83,21 @@ func (bcs *BlockchainService) GetChainInfo() (*ChainInfo, error) {
 				return fmt.Errorf("deserialize block at height %d: %w", height, err)
 			}
 
+			txsInfo := make([]TransactionInfo, 0, len(block.Transactions))
+			for _, tx := range block.Transactions {
+				txsInfo = append(txsInfo, TransactionInfo{
+					Txid:     tx.ID,
+					VinNums:  len(tx.Vin),
+					VoutNums: len(tx.Vout),
+				})
+			}
+
 			BlocksInfo = append(BlocksInfo, BlockInfo{
 				Height:   height,
 				Hash:     block.Hash,
 				PrevHash: block.PrevHash,
+				TxNums:   len(block.Transactions),
+				Txs:      txsInfo,
 			})
 		}
 

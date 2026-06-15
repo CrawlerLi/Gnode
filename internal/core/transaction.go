@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/gob"
 
 	"fmt"
@@ -39,15 +40,70 @@ const (
 )
 
 func (tx *Transaction) Hash() ([]byte, error) {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(tx)
-	if err != nil {
-		return nil, fmt.Errorf("encode transaction: %w", err)
+	if tx == nil {
+		return nil, fmt.Errorf("hash transaction: nil transaction")
 	}
 
-	hash := sha256.Sum256(buf.Bytes())
+	txBytes, err := tx.canonicalBytes()
+	if err != nil {
+		return nil, fmt.Errorf("hash transaction: encode transaction: %w", err)
+	}
+
+	hash := sha256.Sum256(txBytes)
 	return hash[:], nil
+}
+
+func (tx *Transaction) canonicalBytes() ([]byte, error) {
+	var buf bytes.Buffer
+
+	// ID is intentionally excluded: it is the result of hashing this payload.
+	if err := writeUint64(&buf, uint64(len(tx.Vin))); err != nil {
+		return nil, err
+	}
+	for _, vin := range tx.Vin {
+		if err := writeBytes(&buf, vin.Txid); err != nil {
+			return nil, err
+		}
+		if err := writeInt64(&buf, int64(vin.OutIndex)); err != nil {
+			return nil, err
+		}
+		if err := writeBytes(&buf, vin.Signature); err != nil {
+			return nil, err
+		}
+		if err := writeBytes(&buf, vin.Pubkey); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := writeUint64(&buf, uint64(len(tx.Vout))); err != nil {
+		return nil, err
+	}
+	for _, vout := range tx.Vout {
+		if err := writeInt64(&buf, int64(vout.Value)); err != nil {
+			return nil, err
+		}
+		if err := writeBytes(&buf, vout.ScriptPubkey); err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+func writeBytes(buf *bytes.Buffer, data []byte) error {
+	if err := writeUint64(buf, uint64(len(data))); err != nil {
+		return err
+	}
+	_, err := buf.Write(data)
+	return err
+}
+
+func writeInt64(buf *bytes.Buffer, value int64) error {
+	return binary.Write(buf, binary.BigEndian, value)
+}
+
+func writeUint64(buf *bytes.Buffer, value uint64) error {
+	return binary.Write(buf, binary.BigEndian, value)
 }
 
 func (tx *Transaction) SerializeTxOutput(outindex int) ([]byte, error) {
@@ -97,11 +153,10 @@ func NewCoinBase(pubkeyHash []byte) (*Transaction, error) {
 	}
 
 	txID, err := tx.Hash()
-	tx.ID = txID
-
 	if err != nil {
 		return nil, fmt.Errorf("new coinbase tx: get coinbase tx hash  %w", err)
 	}
+	tx.ID = txID
 
 	return tx, nil
 }
@@ -111,21 +166,48 @@ func (tx *Transaction) Verify(prevOutputs map[string]TxOutput) error {
 		return nil
 	}
 
-	txCopy := tx.TrimTx()
 	for idx, input := range tx.Vin {
 
+		txCopy := tx.TrimTx()
+
+		fmt.Printf("tx copy txid is %x, nums of Vin is %d, nums of Vout is %d\n",
+			txCopy.ID,
+			len(txCopy.Vin),
+			len(txCopy.Vout))
+
 		prevOutput, ok := prevOutputs[OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()]
+		fmt.Printf("prevOutput: value:%d, scirptPubkey: %x\n",
+			prevOutput.Value,
+			prevOutput.ScriptPubkey)
 		if !ok {
 			return fmt.Errorf("verify transaction: previous output not found")
 		}
+
+		fmt.Printf("OUTPOINT: input.Txid: %x, input.OutIndex: %x\n", input.Txid, input.OutIndex)
+
 		txCopy.Vin[idx].Pubkey = prevOutput.ScriptPubkey
+		fmt.Printf("Vin %d: outindex: %d, signature: %x, pulickey:%x\n",
+			idx,
+			txCopy.Vin[idx].OutIndex,
+			txCopy.Vin[idx].Signature,
+			txCopy.Vin[idx].Pubkey)
+
+		for i, vout := range txCopy.Vout {
+			fmt.Printf("Vout %d: value: %d, scriptPubkey: %x\n",
+				i,
+				vout.Value,
+				vout.ScriptPubkey)
+		}
+
 		txID, err := txCopy.Hash()
+		fmt.Printf("tx hash: %x\n", txID)
+
 		if err != nil {
 			return fmt.Errorf("failed to verify transaction: %w", err)
 		}
-		txCopy.ID = txID
 
-		verifyHash := sha256.Sum256(txCopy.ID)
+		verifyHash := sha256.Sum256(txID)
+		fmt.Printf("verifyHash: %x\n", verifyHash)
 
 		if len(input.Signature) == 0 || len(input.Signature)%2 != 0 {
 			return fmt.Errorf("verify transaction: invalid signature length")
@@ -147,6 +229,8 @@ func (tx *Transaction) Verify(prevOutputs map[string]TxOutput) error {
 			X:     x,
 			Y:     y,
 		}
+
+		fmt.Printf("pubkey, x: %x, y: %x\n", x, y)
 
 		if !ecdsa.Verify(pubKey, verifyHash[:], r, s) {
 			return fmt.Errorf("verify transaction: ecdsa verification failed")

@@ -108,22 +108,23 @@ func (w *Wallet) Sign(tx *core.Transaction, prevOutputs map[string]core.TxOutput
 		return nil
 	}
 
-	txCopy := tx.TrimTx()
+	for index, input := range tx.Vin {
+		txCopy := tx.TrimTx()
 
-	for index, input := range txCopy.Vin {
 		prevOutput, ok := prevOutputs[core.OutPoint{TxID: input.Txid, OutIndex: input.OutIndex}.String()]
 		if !ok {
 			return fmt.Errorf("sign transaction: previous output not found")
 		}
 		txCopy.Vin[index].Pubkey = prevOutput.ScriptPubkey
+
 		txID, err := txCopy.Hash()
 		if err != nil {
 			return fmt.Errorf("sign transaction: hash pending transaction: %w", err)
 		}
-		txCopy.ID = txID
-		sighHash := sha256.Sum256(txCopy.ID)
 
-		r, s, err := ecdsa.Sign(rand.Reader, w.PrivateKey, sighHash[:])
+		signHash := sha256.Sum256(txID)
+
+		r, s, err := ecdsa.Sign(rand.Reader, w.PrivateKey, signHash[:])
 		if err != nil {
 			return fmt.Errorf("sign transaction: ecdsa sign: %w", err)
 		}
