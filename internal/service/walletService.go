@@ -38,10 +38,10 @@ func NewWalletService(store *wallet.WalletStorage, bc *core.BlockChain) *WalletS
 
 func InitWalletSerivce(minerAddress string, walletDBFile string) (*WalletService, string, error) {
 	walletDB, err := database.OpenDB(walletDBFile)
-	defer walletDB.Close()
 	if err != nil {
 		return nil, "", fmt.Errorf("init wallet service: open wallet db: %w", err)
 	}
+	defer walletDB.Close()
 
 	if err := walletDB.CreateBucket("Wallet"); err != nil {
 		walletDB.Close()
