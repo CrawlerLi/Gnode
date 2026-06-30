@@ -189,7 +189,7 @@ func (bc *BlockChain) CommitGenesisBlock(genesisBlock *Block) error {
 func OpenBlockChain(path string) (bc *BlockChain, err error) {
 	db, err := database.OpenDB(path)
 	if err != nil {
-		return nil, fmt.Errorf("open blockchain: open database: %w", err)
+		return nil, ErrChainNotInitialized
 	}
 
 	var bestStateSnapshot *BestState

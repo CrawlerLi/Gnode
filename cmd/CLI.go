@@ -244,7 +244,7 @@ func syncInit(minerAddress, configFilePath string) error {
 	dbWalletFile := nodeConfig.WalletDB
 	initialized, err := service.IsChainInitialized(chainDBFile)
 	if err != nil {
-		return fmt.Errorf("sync init: check chain initialized: %w", err)
+		return fmt.Errorf("sync init: %w", err)
 	}
 	if initialized {
 		return fmt.Errorf("sync init: chain already initialized")
